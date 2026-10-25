@@ -158,6 +158,19 @@ export const Live = {
   escrowCreate: (title, usd, payeeIdx, ref) => post('/api/escrow', { action: 'create', amount: Math.floor(usd * 100) / 100, title, payee: payeeIdx, engagementId: `tm-${(state.wallet || 'guest').slice(0, 6)}-${ref}-${Date.now() % 1e6}` }),
   coverFund: (contractId, usd) => chain.call('usdc', 'transfer', [chain.sv.addr(state.wallet), chain.sv.addr(contractId), chain.sv.i128(chain.toUnits(Math.floor(usd * 100) / 100))]),
   coverRelease: (contractId, payeeIdx) => post('/api/escrow', { action: 'release', contractId, payee: payeeIdx }),
+  // ---- Money in: the Stellar test anchor (SEP-45 sign-in, SEP-24 deposit)
+  anchorDeposit: (amount) => chain.anchor.deposit(amount),
+  anchorStatus: (id) => chain.anchor.status(id),
+  anchorHome: chain.anchor.home,
+  /** On-time payments recorded by the Circle contract for this wallet (the base of a reliability score). */
+  async score() {
+    let n = 0, circles = 0;
+    for (const [k, v] of Object.entries(state.ids || {})) {
+      if (!/^c\d+$/.test(k) || typeof v !== 'number') continue;
+      try { const c = await chain.circle.get(v); const i = c.members.indexOf(state.wallet); if (i >= 0) { n += Number(c.stamps[i] || 0); circles += 1; } } catch (e) { /* skip */ }
+    }
+    return { onTime: n, circles };
+  },
   payBill: async (usd, toIdx = 5) => chain.call('usdc', 'transfer', [chain.sv.addr(state.wallet), chain.sv.addr(await addrOf(toIdx)), chain.sv.i128(chain.toUnits(Math.round(usd * 1e6) / 1e6))]),
   claimCreate: (usd) => chain.claim.create(Math.round(usd * 1e6) / 1e6),
   claimBack: (id) => chain.claim.back(id),

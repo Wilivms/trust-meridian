@@ -2915,10 +2915,38 @@ function liveBlock() {
     <div class="actions"><button class="btn sm" data-sh="live-new">Create passkey wallet</button><button class="btn ghost sm" data-sh="live-connect">I already have one</button></div>
     <small class="note" id="lvTxt"></small></div>`;
   return `<div class="boxed" id="liveBox"><div class="h"><b>Live on Stellar testnet</b><span class="chip ok">${L.ready() ? 'connected' : 'setting up…'}</span></div>
-    <div class="kv"><span>Account</span><b><a href="${L.chain.contractUrl(w)}" target="_blank" rel="noopener">${short(w)} ↗</a></b><span>Balance</span><b id="lvBal">…</b></div>
+    <div class="kv"><span>Account</span><b><a href="${L.chain.contractUrl(w)}" target="_blank" rel="noopener">${short(w)} ↗</a></b><span>Balance</span><b id="lvBal">…</b><span>Paid on time</span><b id="lvScore">…</b></div>
+    ${L.ready() ? `<div class="boxed"><div class="h"><b>Add money</b><span class="chip">anchor · SEP-24</span></div>
+      <small>Deposit USDC through the Stellar test anchor (${esc(L.anchorHome)}): sign in with your passkey (SEP-45), then follow the anchor's page.</small>
+      <div class="two"><div class="field"><label for="depA">Amount (USDC, 1 to 10)</label><input id="depA" type="number" min="1" max="10" step="1" value="5"></div>
+      <div class="actions" style="align-self:end"><button class="btn sm" data-sh="deposit">Deposit</button></div></div>
+      <small class="note" id="depTxt"></small></div>` : ''}
     <small class="note" id="lvTxt">${L.ready() ? 'Circles, the Lisbon group and claim links run on testnet with this wallet.' : ''}</small></div>`;
 }
 function liveMark() { const L = window.TMLive, s = $('#walletBtn span'); if (L && L.ready() && s) s.textContent = `${ME.name || 'You'} · live`; }
+async function liveScore() { const L = window.TMLive, b = $('#lvScore'); if (!b || !L || !L.ready()) return; try { const r = await L.score(); b.textContent = `${r.onTime} ${r.onTime === 1 ? 'payment' : 'payments'} · ${r.circles} circles`; } catch { b.textContent = '—'; } }
+async function anchorDeposit(btn) {
+  const L = window.TMLive, t = (m) => { const e = $('#depTxt'); if (e) e.textContent = m; };
+  const amt = Math.max(1, Math.min(10, Math.round(+(($('#depA') || {}).value) || 5)));
+  const win = window.open('', 'tm-anchor', 'width=480,height=720'); // opened on the click, filled once the anchor answers
+  btn.disabled = true; t('Sign in to the anchor with your passkey (SEP-45)…');
+  try {
+    const d = await L.anchorDeposit(amt);
+    if (win) win.location = d.url; else window.open(d.url, '_blank');
+    t('Complete the deposit on the anchor’s page. Waiting for the USDC…');
+    for (let k = 0; k < 120; k++) {
+      await wait(5);
+      const tx = await L.anchorStatus(d.id).catch(() => null); if (!tx) continue;
+      t(`Anchor status: ${String(tx.status).replace(/_/g, ' ')}`);
+      if (tx.status === 'completed') {
+        logTx(`Deposit of ${amt} USDC from the anchor (${L.anchorHome})`, 'SEP-24 deposit', Date.now(), tx.stellar_transaction_id || undefined);
+        announce('Money in', `${amt} USDC deposited by the anchor`, 2600); liveBalance(); break;
+      }
+      if (/error|expired|refunded/.test(tx.status)) break;
+    }
+  } catch (e) { if (win) win.close(); t(`Deposit not started: ${String(e.message || e).slice(0, 120)}`); }
+  btn.disabled = false;
+}
 async function liveBalance() { const L = window.TMLive, b = $('#lvBal'); if (!b || !L || !L.wallet()) return; try { b.textContent = `${(await L.balance()).toFixed(2)} USDC`; } catch { b.textContent = '—'; } }
 async function goLive(kind, name) {
   const L = window.TMLive, t = (m) => { const e = $('#lvTxt') || $('#pkTxt'); if (e) e.textContent = m; };
@@ -2935,7 +2963,7 @@ async function goLive(kind, name) {
 }
 function openWallet() {
   openSheet(walletHTML(), () => {
-    liveBalance();
+    liveBalance(); liveScore();
     if ($('#alwR')) $('#alwR').addEventListener('input', (e) => { allowance.limit = +e.target.value; $('#alw').textContent = allowance.limit; $('#alwBar').style.width = Math.min(100, allowance.used / allowance.limit * 100) + '%'; });
   });
 }
@@ -3705,6 +3733,7 @@ async function recoveryDemo() {
 
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-sh]'); if (!b) return;
+  if (b.dataset.sh === 'deposit') { anchorDeposit(b); return; }
   if (b.dataset.sh === 'live-new' || b.dataset.sh === 'live-connect') { const n = cleanName(($('#lvN') || {}).value || ''); b.disabled = true; goLive(b.dataset.sh === 'live-new' ? 'new' : 'connect', n).then(() => { sheetIn.innerHTML = walletHTML(); liveBalance(); }).catch(() => { b.disabled = false; }); }
   if (b.dataset.sh === 'onb-go' && window.TMLive && !window.TMLive.wallet()) { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML().replace('<small class="note">', '<small class="note" id="pkTxt">'); goLive('new', ONB.name).then((w) => { ONB.step = 2; sheetIn.innerHTML = onboardHTML().replace('CBX7…Q2LM', short(w)); }).catch(() => {}); return; }
   if (b.dataset.sh === 'alw-demo') { closeSheet(); run(allowanceDemo); }

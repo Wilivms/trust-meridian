@@ -237,4 +237,46 @@ export const claim = {
   },
 };
 
+// ---------- Anchor: SEP-45 sign-in for a contract wallet, then a SEP-24 deposit ----------
+const ANCHOR = { home: E.VITE_ANCHOR_HOME || 'testanchor.stellar.org' };
+ANCHOR.base = `https://${ANCHOR.home}`;
+const USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+let anchorToken = null;
+export const anchor = {
+  home: ANCHOR.home,
+  /** SEP-45: the anchor sends web_auth_verify entries; the passkey signs the wallet's one. */
+  async auth() {
+    if (anchorToken && anchorToken.until > Date.now()) return anchorToken.jwt;
+    const r = await fetch(`${ANCHOR.base}/sep45/auth?account=${me()}&home_domain=${ANCHOR.home}`);
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Anchor challenge failed');
+    const entries = xdr.SorobanAuthorizationEntries.fromXDR(j.authorizationEntries || j.authorization_entries, 'base64');
+    const k = getKit(), out = [];
+    for (const e of entries) {
+      const c = e.credentials();
+      const mine = c.switch().name === 'sorobanCredentialsAddress' && Address.fromScAddress(c.address().address()).toString() === me();
+      out.push(mine ? await k.signAuthEntry(e, { contextRuleIds: await ruleIds(k, e) }) : e);
+    }
+    const b64 = xdr.SorobanAuthorizationEntries.toXDR(out).toString('base64');
+    const t = await fetch(`${ANCHOR.base}/sep45/auth`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ authorization_entries: b64 }) });
+    const tj = await t.json(); if (!t.ok || !tj.token) throw new Error(tj.error || 'Anchor sign-in failed');
+    anchorToken = { jwt: tj.token, until: Date.now() + 20 * 60e3 };
+    return tj.token;
+  },
+  /** SEP-24 interactive deposit: returns the anchor's page to open, and the transaction id. */
+  async deposit(amount) {
+    const jwt = await anchor.auth();
+    const r = await fetch(`${ANCHOR.base}/sep24/transactions/deposit/interactive`, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${jwt}` },
+      body: JSON.stringify({ asset_code: 'USDC', asset_issuer: USDC_ISSUER, account: me(), amount: String(amount), lang: 'en' }),
+    });
+    const j = await r.json(); if (!r.ok || !j.url) throw new Error(j.error || 'Deposit refused by the anchor');
+    return j;
+  },
+  async status(id) {
+    const jwt = await anchor.auth();
+    const r = await fetch(`${ANCHOR.base}/sep24/transaction?id=${encodeURIComponent(id)}`, { headers: { authorization: `Bearer ${jwt}` } });
+    const j = await r.json(); return j.transaction || j;
+  },
+};
+
 export { scValToNative, Contract, assemble };
