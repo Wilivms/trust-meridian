@@ -20,13 +20,14 @@ Trust Meridian puts three everyday uses on one passkey wallet:
 
 | Building block | Role in Trust Meridian |
 |---|---|
-| **OpenZeppelin smart accounts** (smart-account-kit) | Passkey wallets, context rules, spending-limit policy (family allowance), guardians |
+| **OpenZeppelin smart accounts** (smart-account-kit) | Passkey wallets; the bill agent's own key in a context rule capped by the spending-limit policy |
 | **Sponsored relay** (`api/relay`) | Pays every fee from a sponsor account: users never hold XLM |
 | **DeFindex** | The idle Circle pot is parked in a vault between collection and payout |
 | **XOXNO Lending** | Security deposits are supplied while the circle runs; the *advance on your turn* is borrowed against them |
-| **Trustless Work** | Escrow for Cover bills until the payment is confirmed |
-| **Soroswap · Reflector** | Exact-output conversion into the payee's currency, guarded by the oracle price |
-| **Claude (Anthropic)** | Reads a bill photo to pre-fill a Cover request (Sonnet, vision); sums up a combined payout in plain words (Haiku) |
+| **Trustless Work** | One escrow per Cover bill: funded by the passkey wallet (or by a Circle `payout_combo`), released when the payee confirms |
+| **Reflector** | Live EUR, GBP, CAD, MXN and BRL rates from the fiat oracle |
+| **Stellar anchor** (SEP-45, SEP-24) | Deposit USDC into a passkey wallet: the passkey signs the anchor's web-auth challenge |
+| **Claude (Anthropic)** | Reads a bill photo (Sonnet, vision); sums up a combined payout (Haiku); runs the bill agent, which pays recurring bills within its weekly cap |
 | **Supabase** | Real-time harbor, request metadata and the live ledger mirror (money stays on-chain) |
 
 ## Contracts

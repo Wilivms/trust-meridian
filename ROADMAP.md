@@ -61,3 +61,20 @@ How Trust Meridian was built during HackMeridian (Lisbon, 25–26 October 2026):
 - Each new wallet costs the demo family about 1,000 test USDC; without automatic refills the third visitor's onboarding failed.
 - Several bot transactions in parallel from the same sponsor account collided on sequence numbers: family approvals now run one after another.
 - The intro's last shot was framed too close: the poles of the meridian to trace were off screen. The camera distance is now computed from the field of view.
+
+## 5 · Everything real
+
+- No simulation left: an action either is a testnet transaction or it is gone from the app. Without a wallet, the app asks for one first.
+- **Trustless Work**: each Cover request gets a single-release escrow (`api/escrow.js`): the payee is service provider and receiver, Trust Meridian approves and releases. The passkey wallet funds it with a plain USDC transfer; the Circle `payout_combo` can fund it inside the payout. Deploy, fund and release verified on testnet.
+- **Bill agent**: one Face ID adds a context rule to the wallet: the agent's key (a delegated signer), USDC transfers only, OpenZeppelin's spending-limit policy as a weekly cap. Claude picks the bills due; the server signs as the agent (`api/agent.js`). Verified: within the cap a payment goes through, over it the wallet refuses on-chain.
+- **Anchor deposit**: SEP-45 web auth signed by the passkey, then a SEP-24 interactive deposit with the Stellar test anchor. Verified: 5 USD in, 4.50 USDC received in the contract wallet.
+- **Reflector**: the testnet fiat oracle publishes EUR, GBP, CAD, MXN and BRL, so the family moved to Paris, London, Toronto, Mexico City and São Paulo, with new monuments.
+- Help requests are saved in Supabase; SEP-7 links pay the payee's real testnet account; creating a circle or a shared account is on-chain.
+- The intro opens by drawing a circle (inspired by why.zero, where you draw a zero to enter).
+
+### Problems met
+
+- The kit's signed entry and our SEP-45 entries came from two copies of the XDR types: the challenge answer is encoded by hand.
+- Delegated signers need a second authorization entry: the agent signs `__check_auth(digest)` on the wallet, where the digest binds the context rule id.
+- The combined payout first passed no bill destination: the bill now goes into the request's escrow.
+- Creating two wallets at once made the shared deployer collide and the relay time out.
