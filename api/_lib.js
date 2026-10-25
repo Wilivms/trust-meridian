@@ -1,6 +1,6 @@
 // Shared server helpers for the Vercel functions.
 import {
-  Address, Keypair, Operation, TransactionBuilder, authorizeEntry, nativeToScVal, rpc, scValToNative, xdr, Account,
+  Address, Asset, Horizon, Keypair, Operation, TransactionBuilder, authorizeEntry, nativeToScVal, rpc, scValToNative, xdr, Account,
 } from '@stellar/stellar-sdk';
 
 const env = process.env;
@@ -144,4 +144,35 @@ export function allowed(funcB64) {
   if (t !== 'hostFunctionTypeInvokeContract') return false;
   const target = Address.fromScAddress(f.invokeContract().contractAddress()).toString();
   return [CFG.circle, CFG.settle, CFG.claim, CFG.usdc].includes(target) || target.startsWith('C');
+}
+
+// ---------- demo upkeep: family accounts buy test USDC on the testnet DEX when low ----------
+const horizon = new Horizon.Server(env.HORIZON_URL || 'https://horizon-testnet.stellar.org');
+const USDC_ASSET = new Asset('USDC', env.USDC_ISSUER || 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5');
+
+async function classic(kp, op) {
+  const acct = await horizon.loadAccount(kp.publicKey());
+  const tx = new TransactionBuilder(acct, { fee: '10000', networkPassphrase: CFG.passphrase }).addOperation(op).setTimeout(60).build();
+  tx.sign(kp);
+  return horizon.submitTransaction(tx);
+}
+
+/** Keeps a demo account above `min` USDC (buys with its own XLM; friendbot when XLM runs low). */
+export async function refill(kp, min, target = min * 2) {
+  let acct = await horizon.loadAccount(kp.publicKey());
+  const bal = (code) => Number((acct.balances.find((b) => (code ? b.asset_code === code : b.asset_type === 'native')) || {}).balance || 0);
+  let usdc = bal('USDC');
+  if (usdc >= min) return { usdc, bought: 0 };
+  if (bal() < (target - usdc) * 2 + 500) {
+    const tmp = Keypair.random();
+    await fetch(`https://friendbot.stellar.org/?addr=${tmp.publicKey()}`);
+    await classic(tmp, Operation.accountMerge({ destination: kp.publicKey() }));
+  }
+  let left = Math.ceil(target - usdc), bought = 0;
+  while (left > 0) {
+    const chunk = Math.min(left, 500);
+    await classic(kp, Operation.pathPaymentStrictReceive({ sendAsset: Asset.native(), sendMax: String(chunk * 3), destination: kp.publicKey(), destAsset: USDC_ASSET, destAmount: String(chunk), path: [] }));
+    left -= chunk; bought += chunk;
+  }
+  return { usdc: usdc + bought, bought };
 }

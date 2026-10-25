@@ -223,4 +223,4 @@ export const claim = {
   },
 };
 
-export { scValToNative, Contract };
+export { scValToNative, Contract, assemble };

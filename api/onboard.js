@@ -6,7 +6,7 @@
 //   s1     – "Lisbon weekend" Settle group, with the family's expenses
 // FAM index → member: 0 you, 1 lea, 2 hugo, 3 ines, 4 noah, 5 emma
 import { Keypair, xdr } from '@stellar/stellar-sdk';
-import { CFG, bots, invokeFn, simulate, signEntries, relay, b64, sv, json, server } from './_lib.js';
+import { CFG, bots, invokeFn, simulate, signEntries, relay, b64, sv, json, server, refill } from './_lib.js';
 
 const U = (x) => BigInt(Math.round(Number(x) * 1e7));
 const NAMES = ['you', 'lea', 'hugo', 'ines', 'noah', 'emma'];
@@ -33,6 +33,8 @@ export default async function handler(req, res) {
     switch (body.step) {
       case 'fund': {
         const t = Keypair.fromSecret(process.env.TREASURY_SECRET);
+        // keep the demo family solvent: every new wallet costs them ~1,000 test USDC
+        await Promise.all([refill(t, 1000), refill(B.lea, 500), refill(B.noah, 500), refill(B.hugo, 200), refill(B.ines, 200), refill(B.emma, 200)]);
         const func = invokeFn(CFG.usdc, 'transfer', [sv.addr(t.publicKey()), sv.addr(me), sv.i128(U(500))]);
         const s = await simulate(func);
         const r = await relay({ func: b64(func), auth: (await signEntries(s.auth, [t])).map(b64) });
