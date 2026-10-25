@@ -43,7 +43,15 @@ export default async function handler(req, res) {
       case 'c1': {
         const order = [2, 3, 4, 5, 0, 1];
         const r = await act(B, 'hugo', CFG.circle, 'create', [sv.addr(A(2)), sv.str('Lopes Family'), sv.i128(U(100)), sv.i128(0n), vec(order.map((i) => sv.addr(A(i)))), sv.u32(6), sv.bool(false)]);
-        return json(res, 200, { id: Number(r.result), hashes: [r.hash] });
+        txs.push(r.hash);
+        // the family's instalments are pulled by `collect` from capped allowances (one round's worth each)
+        const latest = await server.getLatestLedger();
+        for (const i of [1, 2, 3, 4, 5]) {
+          const allowed = BigInt(await simulate(invokeFn(CFG.usdc, 'allowance', [sv.addr(A(i)), sv.addr(CFG.circle)])).then((x) => x.result || 0));
+          if (allowed >= U(300)) continue;
+          txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.circle), sv.i128(U(2000)), sv.u32(latest.sequence + 150_000)])).hash);
+        }
+        return json(res, 200, { id: Number(r.result), hashes: txs });
       }
       case 'c2': {
         const r = await act(B, 'lea', CFG.circle, 'create', [sv.addr(A(1)), sv.str('Paris–Lagos savers'), sv.i128(U(200)), sv.i128(U(20)), vec([0, 1, 4].map((i) => sv.addr(A(i)))), sv.u32(3), sv.bool(false)]);

@@ -34,6 +34,13 @@ export default async function handler(req, res) {
         const r = await relay({ func: b64(func), auth: auth.map(b64) });
         return json(res, 200, { ...r, result: s.result });
       }
+      case 'collect': {
+        // anyone may trigger it: the contract only pulls instalments members pre-approved
+        const func = invokeFn(CFG.circle, 'collect', [sv.u32(body.id)]);
+        const s = await simulate(func);
+        const r = await relay({ func: b64(func), auth: [] });
+        return json(res, r.success ? 200 : 500, { ...r, result: s.result });
+      }
       case 'relay': {
         const r = await relay({ func: body.func, auth: body.auth || [] });
         return json(res, r.success ? 200 : 500, r);

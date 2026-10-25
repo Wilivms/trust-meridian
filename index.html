@@ -565,7 +565,7 @@ button.item:hover{transform:translateY(-2px)}
     <div class="chap" data-i="2">
       <div class="eyebrow">01 · Circle</div>
       <h2>Save <em>together.</em></h2>
-      <p>The rotating savings circle, without borders. Everyone pays in the same value in their own currency, at a rate proven on-chain by the Reflector oracle. Between rounds the pot earns yield on Blend, and each round it goes to one member, in theirs.</p>
+      <p>The rotating savings circle, without borders. Everyone pays in the same value in their own currency, at a rate proven on-chain by the Reflector oracle. Between rounds the pot earns yield (DeFindex vault → XOXNO Lending), and each round it goes to one member, in theirs.</p>
     </div>
     <div class="chap" data-i="3">
       <div class="eyebrow">02 · Settle</div>
@@ -581,7 +581,7 @@ button.item:hover{transform:translateY(-2px)}
       <div class="eyebrow">Trust Meridian</div>
       <h2>One meridian <em>connecting everyone.</em></h2>
       <p>Sign in with a passkey: no seed phrase, no gas. Three gestures, one network, a few seconds and a fraction of a cent. Trace the Greenwich meridian to dive in.</p>
-      <div class="chips"><span>Passkeys</span><span>No gas</span><span>Reflector</span><span>Soroswap</span><span>Trustless Work</span><span>Anchors</span><span>Blend</span></div>
+      <div class="chips"><span>Passkeys</span><span>No gas</span><span>Reflector</span><span>Soroswap</span><span>Trustless Work</span><span>Anchors</span><span>DeFindex</span><span>XOXNO</span></div>
     </div>
   </div>
   <nav class="dots" id="dots" aria-label="Chapters"></nav>
@@ -1046,7 +1046,7 @@ LOC.overview = V3(150, 0, 175);
 const OPC = LOC.overview;
 const OV = { hits: [], tags: [], spin: [], beams: [], blocks: [], berths: [], qrMat: null };
 const FEAT_ISLES = [
-  { id: 'join', name: 'Join', sub: 'scan the QR', color: '#ffd23f' },
+  { id: 'join', name: 'Try it', sub: 'scan the QR', color: '#ffd23f' },
   { id: 'keys', name: 'Keys', sub: 'the wallet', color: '#ffd23f' },
   { id: 'rates', name: 'Rates', sub: 'fair FX', color: '#2fd1b8' },
   { id: 'rails', name: 'Rails', sub: 'to the bank', color: '#5b9dff' },
@@ -1880,7 +1880,7 @@ function nightFX(dt) {
 /* ---------- on-chain confirmations: every action waits for its ledger before the world moves ---------- */
 let ledgerNo = 61234560 + Math.floor(Math.random() * 9000);
 async function onChain(what, kind, label, real) {
-  const L = window.TMLive, live = !!(L && L.ready());
+  const L = window.TMLive, live = !!(L && L.ready()) && !(typeof Presenter !== 'undefined' && Presenter.sim);
   const box = $('#txs'), el = document.createElement('div'); el.className = 'tx';
   el.innerHTML = `<i class="spin" aria-hidden="true"></i><span><b>${live && real ? 'Sign & submit' : 'Submitting'}</b> · ${esc(label || kind)}</span>`;
   box.prepend(el); requestAnimationFrame(() => el.classList.add('in'));
@@ -2198,11 +2198,11 @@ function potTo(v, max) {
    ========================================================= */
 const ben = (c) => FAM[c.members[c.round % c.members.length]];
 const allPaid = (c) => c.members.every((i) => c.paid[i]);
-async function contribute(i) {
+async function contribute(i, shared) {
   const c = circ(); if (c.paid[i]) return;
   c.paid[i] = true; render();
   const f = FAM[i], amt = fmt(c.amount * FX[f.cur], f.cur);
-  await onChain(`${f.name} paid ${amt} into ${c.name} at the Reflector rate`, 'circle · pay', `${f.name} · ${amt} → pot`, (L) => L.circlePay(c.id, i));
+  await onChain(`${f.name} paid ${amt} into ${c.name} at the Reflector rate`, 'circle · pay', `${f.name} · ${amt} → pot`, shared ? () => shared : (L) => L.circlePay(c.id, i));
   await walk(f.char, f.out);
   await coinArc(f.char.position.clone().setY(PL + 1.6), ORB, 2.2, 0.8);
   pulse(CP.clone().setY(PL)); sparkle(ORB, 0xffe08a, 14, 0.6, 0.5, 2.2);
@@ -2211,8 +2211,10 @@ async function contribute(i) {
   render();
 }
 async function othersPay() {
-  const c = circ();
-  await Promise.all(c.members.map((i, k) => (i === 0 || c.paid[i] ? null : wait(k * 0.35).then(() => contribute(i)))));
+  const c = circ(), L = window.TMLive, live = L && L.ready() && !Presenter.sim;
+  // live: one `collect` pulls every family instalment from their capped allowances
+  const shared = live ? L.collect(c.id) : null; if (shared) shared.catch(() => {});
+  await Promise.all(c.members.map((i, k) => (i === 0 || c.paid[i] ? null : wait(k * 0.35).then(() => contribute(i, shared)))));
   if (allPaid(c)) { announce('Circle complete', `The pot can go to ${ben(c).name}`); sparkle(ORB, 0xffd23f, 30, 1, 0.6, 3); }
 }
 async function youPay() { const c = circ(); const was = c.paid[0]; await contribute(0); if (!was) earnStamp(c); if (allPaid(c)) { announce('Circle complete', `The pot can go to ${ben(c).name}`); sparkle(ORB, 0xffd23f, 30, 1, 0.6, 3); } }
@@ -2233,7 +2235,7 @@ async function payout() {
   CONF.burst(b.home.clone().setY(G + 3), [b.color, '#ffd23f', '#ffffff', '#ff8a65'], 90, 11);
   potTo(0, total);
   announce(fmt(total * FX[b.cur], b.cur), `sent to ${b.name}, in ${b.city}`, 2600);
-  postcard({ kind: 'Circle · payout', stamp: b.sym, route: `${esc(c.name)} → <em>${b.city}</em>`, lines: [`<b>${fmt(total * FX[b.cur], b.cur)}</b> to ${b.name}`, `pot ${num(total, 'USDC')} USDC · 2 signatures ✓`, `+${num(total * 0.042 / 12, 'USDC')} USDC earned on Blend`], saved: addSaved(total), hash: h, share: `The ${c.name} pot reached ${b.name} in ${b.city}` });
+  postcard({ kind: 'Circle · payout', stamp: b.sym, route: `${esc(c.name)} → <em>${b.city}</em>`, lines: [`<b>${fmt(total * FX[b.cur], b.cur)}</b> to ${b.name}`, `pot ${num(total, 'USDC')} USDC · 2 signatures ✓`, `+${num(total * 0.042 / 12, 'USDC')} USDC earned on XOXNO`], saved: addSaved(total), hash: h, share: `The ${c.name} pot reached ${b.name} in ${b.city}` });
   await Promise.all(c.members.map((i, k) => wait(k * 0.1).then(() => walk(FAM[i].char, [...FAM[i].out].reverse()))));
   c.round++; c.paid = [];
 }
@@ -2273,7 +2275,7 @@ function renderCircleDetail() {
       <h2>Round ${c.round % c.members.length + 1} <em>of ${c.members.length}</em></h2>
       <p class="lede">Everyone crosses their bridge with the equivalent of ${c.amount}&nbsp;USDC, at the Reflector rate. This round, the pot goes to ${b.name}, in ${b.cur}.</p></div>
     <div><div class="pot"><b id="potNum">${num(c.shown || 0, 'USDC')}</b><span>/ ${num(total, 'USDC')} USDC</span></div><div class="bar"><i id="potBar" style="width:${(c.pot || 0) / total * 100}%"></i></div>
-      <div class="facts"><span class="chip">Reflector rate · ${rateAge()}s ago</span><span class="chip">vault · 2-of-${c.members.length} multisig</span><span class="chip ok">Blend · 4.2% APY · +${num((c.pot || 0) * 0.042 / 12, 'USDC')}</span><span class="chip">passport · ${STAMPS.length} stamps</span></div></div>
+      <div class="facts"><span class="chip">Reflector rate · ${rateAge()}s ago</span><span class="chip">vault · 2-of-${c.members.length} multisig</span><span class="chip ok">DeFindex → XOXNO · 4.2% APY · +${num((c.pot || 0) * 0.042 / 12, 'USDC')}</span><span class="chip">passport · ${STAMPS.length} stamps</span></div></div>
     <div class="rows">${rows}</div>
     <p class="note">Late payment: 48 hours of grace, then the member's deposit covers the share. A second miss adds a 2% penalty, or the group votes to move their turn.</p>
     <div class="actions">
@@ -2820,7 +2822,7 @@ const hex = () => { const a = new Uint8Array(32); try { crypto.getRandomValues(a
 const short = (h) => h.slice(0, 4) + '…' + h.slice(-4);
 function logTx(what, kind, t = Date.now(), real) { const h = real || hex(); LEDGER.unshift({ what, kind, h, t, real: !!real }); if (LEDGER.length > 40) LEDGER.pop(); if (OV.dropBlock) OV.dropBlock(); return h; }
 const since = (t) => { const s = Math.max(1, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'; };
-[['Hugo paid 14,840 GYEN into the Lopes Family pot', 'Soroswap swap', 3600], ['Lisbon weekend: expense added by Inès', 'contract call', 2400], ['Studio rent paid to the landlord in Tokyo', 'anchor withdrawal', 1500], ['Blend: pot interest accrued', 'contract call', 600]]
+[['Hugo paid 14,840 GYEN into the Lopes Family pot', 'Soroswap swap', 3600], ['Lisbon weekend: expense added by Inès', 'contract call', 2400], ['Studio rent paid to the landlord in Tokyo', 'anchor withdrawal', 1500], ['XOXNO via DeFindex: pot interest accrued', 'contract call', 600]]
   .forEach(([w, k, s]) => logTx(w, k, Date.now() - s * 1000));
 const rateAge = () => 3 + Math.floor((Date.now() / 1000) % 27);
 
@@ -2845,7 +2847,7 @@ function postcard(o) {
 
 /* ---------- QR codes (qrcode-generator), with a readable fallback ---------- */
 const BASE_URL = /^https?:/.test(location.href) && !/claude/.test(location.hostname) ? location.href.split('#')[0] : '';
-const JOIN_URL = window.TM_PUBLIC_URL ? window.TM_PUBLIC_URL + '#join' : BASE_URL ? BASE_URL + '#join' : '';
+const JOIN_URL = window.TM_PUBLIC_URL || (location.protocol === 'https:' ? location.origin + '/' : BASE_URL ? BASE_URL : '');
 function drawQR(cv, text, top = 0) {
   const x = cv.getContext('2d'), W = cv.width, H = cv.height - top;
   x.fillStyle = '#ffffff'; x.fillRect(0, top, W, H);
@@ -2859,7 +2861,7 @@ const joinText = () => JOIN_URL || 'Trust Meridian · HackMeridian 2026 · the l
 function drawSign() {
   const cv = OV.qrCanvas, x = cv.getContext('2d');
   x.fillStyle = '#0b2a40'; x.fillRect(0, 0, cv.width, 70);
-  x.fillStyle = '#ffd23f'; x.font = '700 34px Manrope, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('SCAN · JOIN THE HARBOR', cv.width / 2, 37);
+  x.fillStyle = '#ffd23f'; x.font = '700 34px Manrope, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('SCAN · TRY IT ON TESTNET', cv.width / 2, 37);
   drawQR(cv, joinText(), 70);
   OV.qrMat.map.needsUpdate = true;
 }
@@ -3042,7 +3044,7 @@ const FEATURES = {
   ] },
   treasury: { name: 'Treasury', em: 'the family pot', items: [
     ['A shared pot with rules', 'The Circle pot is a shared account: a payout needs two approvals, and a late payment follows the rules everyone signed.', ['Soroban contract', 'smart account threshold policy'], 'circle'],
-    ['Yield between rounds', 'While it waits, the pot earns interest in a Blend USDC pool, which lowers everyone\'s cost.', ['Blend lending pool'], 'circle'],
+    ['Yield between rounds', 'While it waits, the pot sits in a DeFindex vault whose strategy supplies it to XOXNO Lending, which lowers everyone\'s cost.', ['DeFindex vault', 'XOXNO Lending'], 'circle'],
   ] },
   ledger: { name: 'Live Ledger', em: 'proof, not promises', items: [
     ['A world driven by the chain', 'Coins fly and boats sail when the transaction is confirmed, each with its link to the explorer. The savings counter shows what banks would have charged.', ['Stellar RPC events', 'Horizon', 'stellar.expert'], null],
@@ -3062,7 +3064,7 @@ function renderOverview() {
         <button class="item" data-act="o-open" data-id="team"><span><b>The Team</b><small>De Vinci Blockchain</small></span><span class="side"><span class="chip">1</span></span></button>
         <button class="item" data-act="o-open" data-id="roadmap"><span><b>What's next</b><small>The roadmap after HackMeridian</small></span><span class="side"><span class="chip">5</span></span></button>
         <button class="item" data-act="o-present"><span><b>Presenter mode</b><small>A clicker runs the demo step by step · key P</small></span><span class="side"><span class="chip">P</span></span></button>
-        <button class="item" data-act="o-open" data-id="join"><span><b>Join live</b><small>Scan the QR, get your own island</small></span><span class="side"><span class="chip ${guests.length >= 15 ? 'open' : 'ok'}">${guests.length} / 15</span></span></button></div>`;
+        <button class="item" data-act="o-open" data-id="join"><span><b>Try it on your phone</b><small>Scan the QR · Stellar testnet</small></span><span class="side"><span class="chip ok">QR</span></span></button></div>`;
   }
   if (v === 'team') {
     return `${back}<div><div class="eyebrow"><b>The Harbor</b> · The Team</div><h2>Who <em>built it</em></h2></div>
@@ -3082,14 +3084,9 @@ function renderOverview() {
       </ol>`;
   }
   if (v === 'join') {
-    return `${back}<div><div class="eyebrow"><b>The Harbor</b> · Join live</div><h2>Your own <em>island</em></h2>
-      <p class="lede">Scan with your phone, create a passkey wallet in seconds and walk into the world yourself. Your island appears here, and you can join the live circle.</p></div>
-      <div class="qr big"><canvas id="qrPanel" width="520" height="520"></canvas><small>${JOIN_URL ? esc(JOIN_URL) : 'The live Vercel link replaces this one at the hackathon.'}</small></div>
-      <div class="boxed"><div class="h"><div class="count"><b>${guests.length}</b><span>/ 15 islands</span></div><button class="btn sm" data-act="o-try">Try it here</button></div>
-        <label class="switch"><span>Show the islands live</span><input type="checkbox" data-act="o-live" ${liveIslands ? 'checked' : ''}></label></div>
-      ${finaleBox()}
-      ${guests.length ? `<div class="sec"><div class="sec-h"><span>In the harbor</span><span>host controls</span></div><div class="rows">${guests.map((g, i) => `<div class="row"><i class="dot" style="background:${g.color}"></i><div class="who"><b>${esc(g.name)}</b><small>${CITIES[g.city].name} · ${g.kind}</small></div><div class="amt"><button class="btn ghost sm" data-act="o-hide" data-k="${i}">Hide</button></div></div>`).join('')}</div>
-        <div class="actions"><button class="btn ghost" data-act="o-reset">Reset the harbor</button></div></div>` : ''}`;
+    return `${back}<div><div class="eyebrow"><b>The Harbor</b> · Try it</div><h2>On your <em>phone</em></h2>
+      <p class="lede">Scan to open Trust Meridian on Stellar testnet: create a passkey wallet with Face ID, get 1,000 test USDC and your family's circles, then pay, settle and cover for real. Fees are sponsored.</p></div>
+      <div class="qr big"><canvas id="qrPanel" width="520" height="520"></canvas><small>${JOIN_URL ? esc(JOIN_URL) : 'The live link appears once deployed.'}</small></div>`;
   }
   const F = FEATURES[v], I = FEAT_ISLES.find((x) => x.id === v);
   const feed = v === 'ledger' ? `<div class="sec"><div class="sec-h"><span>Latest transactions</span><span>saved $${money(saved)}</span></div><div class="feed">${LEDGER.slice(0, 7).map((t) => `<div><span>${esc(t.what)}</span><em>${short(t.h)} · ${since(t.t)}</em></div>`).join('')}</div></div>` : '';
@@ -3441,7 +3438,7 @@ async function blendSupply() {
   await wait(0.8);
   sparkle(ORB, 0xffd23f, 18, 0.8, 0.5, 2.5); c.yieldShown = true;
   announce('The pot earns while it waits', `+${num(amt * 0.042 / 12, 'USDC')} USDC by the payout, lowering everyone's cost`, 2800);
-  logTx(`${c.name}: Blend interest accrued (+${num(amt * 0.042 / 12, 'USDC')} USDC)`, 'contract call');
+  logTx(`${c.name}: XOXNO interest accrued via DeFindex (+${num(amt * 0.042 / 12, 'USDC')} USDC)`, 'contract call');
 }
 const Presenter = (() => {
   let on = false, i = 0, running = false, sim = false;
@@ -3463,7 +3460,13 @@ const Presenter = (() => {
   const isle = (id) => async () => { clean(); await goTo('overview'); await view(() => { ui.overview = id; }); };
   const STEPS = [
     // ---- 1 · the wallet
-    S('Wallet', 'Create a wallet', async () => { clean(); await goTo('circle'); chapter('Your wallet', 'No seed phrase, no gas, no jargon'); await wait(1.2); await run(onboardDemo); }),
+    S('Wallet', 'Your passkey wallet', async () => {
+      clean(); await goTo('circle'); chapter('Your wallet', 'No seed phrase, no gas, no jargon'); await wait(1.2);
+      const L = window.TMLive;
+      // live: the wallet was created before the talk (setup takes ~2 min); show the real account
+      if (L && L.ready() && !sim) { openWallet(); await wait(0.2); const b = $('#liveBox'); if (b) b.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' }); }
+      else await run(onboardDemo);
+    }),
     // ---- 2 · Circle
     S('Circle', 'Arrive at the Square', async () => {
       clean(); await goTo('circle'); const c = circles.find((x) => x.id === 'c1'); if (allPaid(c)) { c.paid = []; c.pot = 0; c.shown = 0; }
@@ -3473,7 +3476,7 @@ const Presenter = (() => {
       clean(); await goTo('circle'); await view(() => { curCircle = 'c1'; ui.circle = 'detail'; applyCircleMembers(); }); await wait(0.6);
       await run(() => Promise.all([youPay(), wait(0.8).then(othersPay)]));
     }),
-    S('Circle', 'The pot earns on Blend', async () => { clean(); await goTo('circle'); await run(blendSupply); }),
+    S('Circle', 'The pot earns: DeFindex → XOXNO', async () => { clean(); await goTo('circle'); await run(blendSupply); }),
     S('Circle', 'Payout · two signatures', async () => { clean(); await goTo('circle'); await run(payout); }),
     // ---- 3 · Settle
     S('Settle', 'Arrive at the Archipelago', async () => {
@@ -3503,7 +3506,7 @@ const Presenter = (() => {
       clean(); await goTo('cover'); const r = requests[0]; await view(() => { curReq = r.id; ui.cover = 'detail'; K.step = -1; K.from = 1; coverFocus = r.city; if (!boatSailing) dockBoat(1); });
       await wait(0.6); const s2 = shareHTML(r); sheet.dataset.uri = s2.uri; openSheet(s2.html, () => drawQR($('#qrShare'), s2.uri));
     }),
-    S('Cover', 'Pay it', async () => { clean(); await goTo('cover'); K.from = 1; render(); await wait(0.6); await run(payReq); }),
+    S('Cover', 'Pay it', async () => { clean(); await goTo('cover'); K.from = 0; render(); await wait(0.6); await run(payReq); }),
     S('Cover', 'A claim link for Tobi', async () => {
       clean(); await goTo('cover'); const r = requests.find((x) => x.id === 'r1'); r.status = 'open'; r.claim = false;
       await view(() => { curReq = 'r1'; ui.cover = 'detail'; K.step = -1; K.from = 1; coverFocus = 4; if (!boatSailing) dockBoat(1); }); await wait(1.2);
@@ -3541,7 +3544,7 @@ const Presenter = (() => {
     const intro = mode === 'intro', done = i >= STEPS.length, cur = STEPS[running ? i - 1 : i], prev = STEPS[i - 1];
     const ch = intro ? 'Intro' : done ? 'Done' : (running ? prev : cur).ch;
     const inCh = STEPS.filter((s) => s.ch === ch), k = inCh.indexOf(running ? prev : cur);
-    const label = intro ? 'next chapter' : done ? 'over to you: the QR, then Hack the Meridian' : running ? prev.t : cur.t;
+    const label = intro ? 'next chapter' : done ? 'questions · the QR opens the app on testnet' : running ? prev.t : cur.t;
     hud.innerHTML = `<span class="pdot ${running ? 'busy' : ''}"></span><b>${ch}</b>${!intro && !done ? `<span class="pn">${k + 1} / ${inCh.length}</span>` : ''}
       <span class="pt">${running ? label : (done ? '' : 'Next: ') + label}</span>
       <span class="pdots">${CHS.map((c) => { const idx = STEPS.findIndex((s) => s.ch === c), last = STEPS.length - 1 - [...STEPS].reverse().findIndex((s) => s.ch === c); return `<i class="${i > last ? 'd' : i > idx ? 'h' : ''}" title="${c}"></i>`; }).join('')}</span>
@@ -3571,7 +3574,7 @@ const Presenter = (() => {
   });
   hud.addEventListener('click', () => next());
   if (location.hash === '#present') setTimeout(start, 600);
-  return { start, stop, next, get on() { return on; }, paint };
+  return { start, stop, next, get on() { return on; }, get sim() { return sim; }, paint };
 })();
 
 function demoFX(dt) { boatsFX(dt); }
@@ -3689,7 +3692,7 @@ async function claimLink() {
 async function claimBack(id) {
   const k = LINKS.find((x) => x.id === id); if (!k || k.status !== 'waiting') return;
   const f = FAM[k.city], me = FAM[0], usd = k.amt / FX[f.cur];
-  await onChain(`Claim link to ${k.to} taken back by You (${num(usd - RECLAIM_FEE, 'USDC')} USDC returned, ${num(RECLAIM_FEE, 'USDC')} fee)`, 'claim contract · reclaim', `Claim back · ${fmt(k.amt, f.cur)} − ${num(RECLAIM_FEE, 'USDC')} USDC fee`, k.chainId != null ? (L) => L.claimBack(k.chainId) : null);
+  await onChain(`Claim link to ${k.to} taken back by You (${num(usd - RECLAIM_FEE, 'USDC')} USDC returned, ${num(RECLAIM_FEE, 'USDC')} fee)`, 'claim contract · reclaim', `Claim back · ${fmt(k.amt, f.cur)} − ${num(RECLAIM_FEE, 'USDC')} USDC fee`, k.chainId != null ? k.chainId ? (L) => L.claimBack(k.chainId) : undefined : null);
   if (mode === 'cover') { pulse(f.coverHub, 0xbfe6f5); await coinArc(f.coverHub.clone().setY(G + 1), me.dock.clone().setY(1.4), 9, 1.4); pulse(me.dock, 0x5ee0a0); }
   k.status = 'returned'; LINKS.forEach((x) => (x.hi = x === k));
   const r = k.reqId && requests.find((x) => x.id === k.reqId); if (r) { r.status = 'open'; r.claim = false; }
@@ -4142,7 +4145,12 @@ const Intro = (() => {
       const bp = route.getPointAt(voyage());
       return { lon: lonOf(bp) - 6, lat: latOf(bp) + 15, d: PR + 4.6, look: bp, chase: true };
     }
-    return { lon: 0, lat: 8, d: 30, look: O };
+    // the whole meridian, pole to pole, must fit the screen to be traced
+    return { lon: 0, lat: 2, d: fitD(), look: O };
+  }
+  function fitD() {
+    const half = PR * 1.065 * 1.22, v = Math.tan((pCam.fov * Math.PI) / 360), h = v * Math.max(pCam.aspect, 0.01);
+    return PR * 0.35 + half / Math.min(v, h * 1.6);
   }
   const camPos = V3(0, 0, 0), camLook = V3(0, 0, 0), tgtPos = V3(0, 0, 0), tgtLook = V3(0, 0, 0);
 
@@ -4199,7 +4207,7 @@ const Intro = (() => {
     const paying = t2 > T_ALL, benI = paying ? Math.floor((t2 - T_ALL) / 3) % 6 : 0, ph = paying ? ((t2 - T_ALL) % 3) / 3 : 0;
     if (ph > 0.4) payBall.position.copy(potCurves[benI].getPoint(1 - (ph - 0.4) / 0.6));
     setOp(payBall, paying && ph > 0.4 ? v2 : 0);
-    potTag.innerHTML = paying ? `<b>pot → ${FAM[benI].name}</b><small>paid in ${FAM[benI].cur}</small>` : `<b>the pot fills</b><small>${arrived} / 6 shares in · earning on Blend</small>`;
+    potTag.innerHTML = paying ? `<b>pot → ${FAM[benI].name}</b><small>paid in ${FAM[benI].cur}</small>` : `<b>the pot fills</b><small>${arrived} / 6 shares in · earning on XOXNO</small>`;
     place(potTag, POT.clone().multiplyScalar(1.07), v2, -16);
 
     // 3 · Settle: the tangle fades, three airships fly the only three transfers needed

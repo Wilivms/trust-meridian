@@ -79,6 +79,8 @@ export const Live = {
   async circlePayout(protoId, co) {
     return chain.circle.payout(circleId(protoId), await addrOf(co), NAMES[co]);
   },
+  /** One `collect` pulls every family member's instalment from their capped allowance. */
+  collect: (protoId) => post('/api/bot', { action: 'collect', id: circleId(protoId) }),
   park: (protoId) => chain.circle.park(circleId(protoId)),
   joinDeposit: (protoId) => chain.circle.join(circleId(protoId)),
   advance: (protoId, usd) => chain.circle.advance(circleId(protoId), usd),
