@@ -29,7 +29,7 @@ function sponsors() {
 }
 
 async function waitFor(hash) {
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 28; i++) {
     const g = await server.getTransaction(hash);
     if (g.status === 'SUCCESS') return { ok: true, ledger: g.ledger, result: g.returnValue ? scValToNative(g.returnValue) : null };
     if (g.status === 'FAILED') return { ok: false, ledger: g.ledger };
@@ -51,9 +51,18 @@ export async function relay(body) {
     const w = await waitFor(s.hash);
     return { success: w.ok, hash: s.hash, status: w.ok ? 'SUCCESS' : 'FAILED', ledger: w.ledger };
   }
+  // several people at once: each attempt takes a different sponsor (sequence numbers never collide twice)
   const list = sponsors();
   if (!list.length) throw new Error('No fee sponsor configured');
-  const kp = list[Math.floor(Math.random() * list.length)];
+  const order = list.map((k) => [Math.random(), k]).sort((a, b) => a[0] - b[0]).map((x) => x[1]);
+  let last;
+  for (const kp of order.slice(0, 3)) {
+    try { return await relayWith(kp, body); } catch (e) { last = e; if (!e.retry) throw e; }
+  }
+  throw last;
+}
+
+async function relayWith(kp, body) {
   const func = typeof body.func === 'string' ? xdr.HostFunction.fromXDR(body.func, 'base64') : body.func;
   const auth = (body.auth || []).map((a) => (typeof a === 'string' ? xdr.SorobanAuthorizationEntry.fromXDR(a, 'base64') : a));
   const acct = await server.getAccount(kp.publicKey());
@@ -81,8 +90,9 @@ export async function relay(body) {
     envelope = TransactionBuilder.buildFeeBumpTransaction(kp, String(resFee + 10000n), inner, CFG.passphrase); envelope.sign(kp);
   }
   const s = await server.sendTransaction(envelope);
-  if (s.status === 'ERROR') throw new Error('Transaction rejected');
+  if (s.status === 'ERROR' || s.status === 'TRY_AGAIN_LATER') { const e = new Error('Transaction rejected'); e.retry = true; throw e; }
   const w = await waitFor(s.hash);
+  if (w.timeout) { const e = new Error('Not confirmed in time'); e.retry = true; throw e; }
   if (!w.ok) return { success: false, hash: s.hash, status: 'FAILED', error: 'Transaction failed on-chain' };
   return { success: true, hash: s.hash, status: 'SUCCESS', ledger: w.ledger, result: w.result };
 }

@@ -56,7 +56,15 @@ export async function restore() {
 export async function createWallet(name) {
   const k = getKit();
   const r = await k.createWallet('Trust Meridian', name || 'Trust Meridian', { autoSubmit: true });
-  return r.contractId;
+  // a busy network can drop the deployment: redeploy the same credential (no new Face ID), up to twice
+  let ok = r.submitResult ? r.submitResult.success : !!me();
+  for (let i = 0; !ok && i < 2; i++) {
+    await new Promise((res) => setTimeout(res, 2500 * (i + 1)));
+    try { const d = await k.credentials.deploy(r.credentialId, { autoSubmit: true }); ok = !!(d.submitResult && d.submitResult.success); } catch (e) { ok = false; }
+  }
+  if (!ok) throw new Error('The network is busy: the wallet was not created. Try again in a moment.');
+  if (!me()) await k.connectWallet({ credentialId: r.credentialId, contractId: r.contractId });
+  return me() || r.contractId;
 }
 
 export async function connect() {
