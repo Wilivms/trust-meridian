@@ -1,6 +1,6 @@
 // Sets up a new wallet's family on testnet, one step per call (each step is
 // one or a few transactions, signed by the family members the server plays).
-//   fund   – 500 test USDC from the treasury
+//   fund   – 1,000 test USDC from the treasury
 //   c1     – "Lopes Family" circle (100 USDC/month, 6 members, Hugo's turn)
 //   c2     – "Paris–Lagos savers" (200 USDC, deposits on XOXNO), Léa and Noah paid
 //   s1     – "Lisbon weekend" Settle group, with the family's expenses
@@ -34,8 +34,8 @@ export default async function handler(req, res) {
       case 'fund': {
         const t = Keypair.fromSecret(process.env.TREASURY_SECRET);
         // keep the demo family solvent: every new wallet costs them ~1,000 test USDC
-        await Promise.all([refill(t, 1000), refill(B.lea, 500), refill(B.noah, 500), refill(B.hugo, 200), refill(B.ines, 200), refill(B.emma, 200)]);
-        const func = invokeFn(CFG.usdc, 'transfer', [sv.addr(t.publicKey()), sv.addr(me), sv.i128(U(500))]);
+        await Promise.all([refill(t, 1500, 4000), refill(B.lea, 500), refill(B.noah, 500), refill(B.hugo, 200), refill(B.ines, 200), refill(B.emma, 200)]);
+        const func = invokeFn(CFG.usdc, 'transfer', [sv.addr(t.publicKey()), sv.addr(me), sv.i128(U(1000))]);
         const s = await simulate(func);
         const r = await relay({ func: b64(func), auth: (await signEntries(s.auth, [t])).map(b64) });
         return json(res, 200, { hashes: [r.hash] });

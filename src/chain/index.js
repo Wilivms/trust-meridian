@@ -109,6 +109,7 @@ const ERRORS = {
 };
 let lastTarget = 'circle';
 function decodeError(msg) {
+  if (/balance is not sufficient|not within the allowed range|insufficient/i.test(String(msg))) return 'Not enough USDC in this wallet';
   const m = /Error\(Contract, #(\d+)\)/.exec(String(msg));
   if (m) return ERRORS[lastTarget][+m[1]] || `Contract error #${m[1]}`;
   return String(msg).slice(0, 240);
@@ -119,6 +120,17 @@ export async function view(target, method, args = []) {
   lastTarget = target;
   const tx = await assemble(CFG[target], method, args);
   return tx.result;
+}
+
+// One context rule id per authorized call in the entry; our wallets have a
+// single Default rule (id 0) if the kit's lookup comes back empty.
+async function ruleIds(k, entry, slow = false) {
+  // Wallets created here hold one Default rule (id 0): skip the indexer lookup.
+  if (slow) { try { const ids = await k.resolveConnectedContextRuleIds(entry); if (ids && ids.length) return ids; } catch (e) { /* fall back */ } }
+  let n = 0;
+  const walk = (inv) => { n += 1; inv.subInvocations().forEach(walk); };
+  walk(entry.rootInvocation());
+  return Array(n).fill(0);
 }
 
 /**
@@ -133,10 +145,11 @@ export async function call(target, method, args = [], { cosign } = {}) {
   const op = tx.built.operations[0];
   const mine = me();
   const auth = [];
-  for (const entry of op.auth || []) {
+  const entries = (op.auth && op.auth.length ? op.auth : (tx.simulationData && tx.simulationData.result && tx.simulationData.result.auth) || []);
+  for (const entry of entries) {
     const c = entry.credentials();
     const isMine = c.switch().name === 'sorobanCredentialsAddress' && Address.fromScAddress(c.address().address()).toString() === mine;
-    auth.push((isMine ? await k.signAuthEntry(entry) : entry).toXDR('base64'));
+    auth.push((isMine ? await k.signAuthEntry(entry, { contextRuleIds: await ruleIds(k, entry) }) : entry).toXDR('base64'));
   }
   const body = { func: op.func.toXDR('base64'), auth };
   const r = await fetch('/api/bot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cosign ? { action: 'cosign', who: cosign, ...body } : { action: 'relay', ...body }) });
