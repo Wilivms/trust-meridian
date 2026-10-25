@@ -13,7 +13,7 @@ const save = () => { try { localStorage.setItem(KEY(state.wallet), JSON.stringif
 async function post(path, body) {
   const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || `${path} failed`);
+  if (!r.ok) throw new Error(j.error || `${path} failed (${r.status})`);
   return j;
 }
 const onboard = (step, extra = {}) => post('/api/onboard', { step, wallet: state.wallet, ...extra });
@@ -29,7 +29,14 @@ async function setup(progress = () => {}) {
   for (const [s, label] of steps) {
     if (state.ids[s] !== undefined) continue;
     progress(label);
-    const r = await onboard(s, s === 's1x' ? { group: state.ids.s1 } : {});
+    let r;
+    // a step can fail on a busy network or during a redeploy: try it three times
+    for (let k = 0; ; k++) {
+      try { r = await onboard(s, s === 's1x' ? { group: state.ids.s1 } : {}); break; } catch (e) {
+        if (k >= 2) throw new Error(`${label}: ${e.message}`);
+        progress(`${label} (retrying)`); await new Promise((ok) => setTimeout(ok, 4000 * (k + 1)));
+      }
+    }
     state.ids[s] = r.id ?? true; save();
   }
   state.ids.done = true; save();
