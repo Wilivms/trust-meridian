@@ -1,0 +1,56 @@
+name: Contracts
+on:
+  push:
+    paths: ["contracts/**", "Cargo.toml", ".github/workflows/contracts.yml", "scripts/**"]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Deploy to testnet"
+        type: boolean
+        default: false
+
+jobs:
+  test-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+      - uses: Swatinem/rust-cache@v2
+      - name: Unit tests
+        run: cargo test --workspace
+      - name: Install stellar-cli
+        run: |
+          curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Build wasm
+        run: stellar contract build --meta source_repo=github:${{ github.repository }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm
+          path: target/wasm32v1-none/release/*.wasm
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy
+    needs: test-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm
+          path: wasm
+      - name: Install stellar-cli
+        run: |
+          curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Deploy
+        env:
+          DEPLOYER_SECRET: ${{ secrets.DEPLOYER_SECRET }}
+          USDC_ID: ${{ vars.USDC_ID }}
+        run: bash scripts/deploy.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployments
+          path: deployments/testnet.json

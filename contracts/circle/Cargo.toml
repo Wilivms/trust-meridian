@@ -1,0 +1,18 @@
+[package]
+name = "tm-circle"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["lib", "cdylib"]
+doctest = false
+
+[dependencies]
+soroban-sdk = { workspace = true }
+xoxno-contract-sdk = { workspace = true }
+
+[dev-dependencies]
+soroban-sdk = { workspace = true, features = ["testutils"] }
+xoxno-contract-sdk = { workspace = true, features = ["testutils"] }
+tm-settle = { path = "../settle" }

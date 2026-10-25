@@ -1,0 +1,11 @@
+node_modules
+dist
+target
+.env
+.env.*
+!.env.example
+.vercel
+*.wasm
+!public/wasm/*.wasm
+demo/config.json
+test_snapshots

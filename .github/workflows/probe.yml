@@ -1,0 +1,25 @@
+name: Testnet probe
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: "Bash to run against testnet (read-only checks)"
+        required: false
+        default: "bash scripts/probe.sh"
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install stellar-cli
+        run: |
+          curl -fsSL https://github.com/stellar/stellar-cli/raw/main/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Probe
+        env:
+          DEPLOYER_SECRET: ${{ secrets.DEPLOYER_SECRET }}
+        run: ${{ inputs.script }} 2>&1 | tee probe.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe
+          path: probe.txt

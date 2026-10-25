@@ -1,0 +1,211 @@
+// Trust Meridian · chain layer
+// Passkey smart account (OpenZeppelin, via smart-account-kit), contract calls to
+// Circle / Settle / Claim, fee-sponsored submission through our relayer.
+import {
+  Address, Contract, Keypair, Operation, StrKey, contract, nativeToScVal, rpc, scValToNative, xdr,
+} from '@stellar/stellar-sdk';
+import { SmartAccountKit, IndexedDBStorage } from 'smart-account-kit';
+
+const E = import.meta.env;
+export const CFG = {
+  rpcUrl: E.VITE_RPC_URL || 'https://soroban-testnet.stellar.org',
+  passphrase: E.VITE_NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
+  circle: E.VITE_CIRCLE_ID,
+  settle: E.VITE_SETTLE_ID,
+  claim: E.VITE_CLAIM_ID,
+  usdc: E.VITE_USDC_ID,
+  accountWasmHash: E.VITE_ACCOUNT_WASM_HASH,
+  webauthnVerifier: E.VITE_WEBAUTHN_VERIFIER_ADDRESS,
+  spendingLimitPolicy: E.VITE_SPENDING_LIMIT_POLICY_ADDRESS,
+  thresholdPolicy: E.VITE_THRESHOLD_POLICY_ADDRESS,
+  explorer: E.VITE_EXPLORER || 'https://stellar.expert/explorer/testnet',
+  live: !!(E.VITE_CIRCLE_ID && E.VITE_SETTLE_ID && E.VITE_CLAIM_ID),
+};
+export const DEC = 10_000_000n; // 7 decimals
+export const toUnits = (x) => BigInt(Math.round(Number(x) * 1e7));
+export const fromUnits = (v) => Number(v) / 1e7;
+
+export const server = new rpc.Server(CFG.rpcUrl);
+
+let kit = null;
+export function getKit() {
+  if (kit) return kit;
+  kit = new SmartAccountKit({
+    rpcUrl: CFG.rpcUrl,
+    networkPassphrase: CFG.passphrase,
+    accountWasmHash: CFG.accountWasmHash,
+    webauthnVerifierAddress: CFG.webauthnVerifier,
+    relayerUrl: `${location.origin}/api/relay`,
+    rpName: 'Trust Meridian',
+    storage: new IndexedDBStorage(),
+  });
+  return kit;
+}
+
+export const me = () => (kit && kit.contractId) || null;
+
+/** Restores a stored passkey session silently. */
+export async function restore() {
+  if (!CFG.live) return null;
+  try { await getKit().connectWallet(); } catch (e) { return null; }
+  return me();
+}
+
+/** Creates the passkey wallet (one Face ID / fingerprint prompt). */
+export async function createWallet(name) {
+  const k = getKit();
+  const r = await k.createWallet('Trust Meridian', name || 'Trust Meridian', { autoSubmit: true });
+  return r.contractId;
+}
+
+export async function connect() {
+  await getKit().connectWallet({ prompt: true });
+  return me();
+}
+
+// ---------- ScVal helpers ----------
+export const sv = {
+  u32: (n) => nativeToScVal(Number(n), { type: 'u32' }),
+  u64: (n) => nativeToScVal(BigInt(n), { type: 'u64' }),
+  i128: (n) => nativeToScVal(BigInt(n), { type: 'i128' }),
+  bool: (b) => nativeToScVal(!!b),
+  str: (s) => nativeToScVal(String(s), { type: 'string' }),
+  addr: (a) => new Address(a).toScVal(),
+  addrs: (list) => xdr.ScVal.scvVec(list.map((a) => new Address(a).toScVal())),
+  bytes: (u8) => xdr.ScVal.scvBytes(Buffer.from(u8)),
+  none: () => xdr.ScVal.scvVoid(),
+  // A #[contracttype] struct: a map with symbol keys sorted by name.
+  struct: (obj) => xdr.ScVal.scvMap(Object.keys(obj).sort().map((k) => new xdr.ScMapEntry({ key: xdr.ScVal.scvSymbol(k), val: obj[k] }))),
+  vec: (vals) => xdr.ScVal.scvVec(vals),
+};
+
+function hostFn(contractId, method, args) {
+  return xdr.HostFunction.hostFunctionTypeInvokeContract(
+    new xdr.InvokeContractArgs({
+      contractAddress: new Address(contractId).toScAddress(),
+      functionName: method,
+      args,
+    }),
+  );
+}
+
+async function assemble(contractId, method, args) {
+  const tx = await contract.AssembledTransaction.buildWithOp(
+    Operation.invokeHostFunction({ func: hostFn(contractId, method, args), auth: [] }),
+    {
+      contractId, method, networkPassphrase: CFG.passphrase, rpcUrl: CFG.rpcUrl, server,
+      timeoutInSeconds: 60, parseResultXdr: (v) => scValToNative(v),
+    },
+  );
+  const sim = tx.simulation;
+  if (sim && rpc.Api.isSimulationError(sim)) throw new Error(decodeError(sim.error));
+  return tx;
+}
+
+const ERRORS = {
+  circle: ['', 'Circle not found', 'Not a member', 'Already a member', 'Circle full', 'Circle closed', 'Bad amount', 'Already paid this round', 'Not everyone has paid yet', 'Two different members must sign', 'Circle finished', 'Not admin', 'Grace period not over', 'No deposit', 'Not started', 'Pot too small', 'Advance too large', 'Advance already taken', 'Turn already received', 'Lending not configured'],
+  settle: ['', 'Group not found', 'Not a member', 'Already a member', 'Group full', 'Group closed', 'Bad amount', 'Nothing to settle', 'Already approved', 'No participants'],
+  claim: ['', 'Link not found', 'Link not waiting', 'Bad amount', 'Not the sender', 'Key already used'],
+};
+let lastTarget = 'circle';
+function decodeError(msg) {
+  const m = /Error\(Contract, #(\d+)\)/.exec(String(msg));
+  if (m) return ERRORS[lastTarget][+m[1]] || `Contract error #${m[1]}`;
+  return String(msg).slice(0, 240);
+}
+
+/** Reads a contract view through simulation (no signature). */
+export async function view(target, method, args = []) {
+  lastTarget = target;
+  const tx = await assemble(CFG[target], method, args);
+  return tx.result;
+}
+
+/** Calls a contract as the connected wallet: passkey signature, sponsored fees. */
+export async function call(target, method, args = []) {
+  lastTarget = target;
+  const k = getKit();
+  const tx = await assemble(CFG[target], method, args);
+  const res = await k.signAndSubmit(tx);
+  if (!res.success) throw new Error(res.error ? res.error.message : 'Transaction failed');
+  return { hash: res.hash, ledger: res.ledger, result: tx.result };
+}
+
+/** Asks the server to act for a family member (bot wallet) in the demo. */
+export async function bot(action, body = {}) {
+  const r = await fetch('/api/bot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action, ...body }) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || 'Bot failed');
+  return j;
+}
+
+export const txUrl = (h) => `${CFG.explorer}/tx/${h}`;
+export const contractUrl = (id) => `${CFG.explorer}/contract/${id}`;
+
+// ---------- Token ----------
+export async function usdcBalance(who = me()) {
+  if (!who) return 0;
+  const v = await view('usdc', 'balance', [sv.addr(who)]);
+  return fromUnits(v);
+}
+export const approveUsdc = (spender, amount, ledgers = 120_000) =>
+  (async () => {
+    const latest = await server.getLatestLedger();
+    return call('usdc', 'approve', [sv.addr(me()), sv.addr(spender), sv.i128(toUnits(amount)), sv.u32(latest.sequence + ledgers)]);
+  })();
+
+// ---------- Circle ----------
+export const circle = {
+  get: (id) => view('circle', 'get_circle', [sv.u32(id)]),
+  count: () => view('circle', 'count'),
+  create: (name, amount, deposit, members, max, open) =>
+    call('circle', 'create', [sv.addr(me()), sv.str(name), sv.i128(toUnits(amount)), sv.i128(toUnits(deposit)), sv.addrs(members), sv.u32(max), sv.bool(open)]),
+  join: (id) => call('circle', 'join', [sv.u32(id), sv.addr(me())]),
+  pay: (id) => call('circle', 'pay', [sv.u32(id), sv.addr(me())]),
+  park: (id) => call('circle', 'park', [sv.u32(id), sv.addr(me())]),
+  advance: (id, amount) => call('circle', 'advance', [sv.u32(id), sv.addr(me()), sv.i128(toUnits(amount))]),
+  payout: (id, other) => call('circle', 'payout', [sv.u32(id), sv.addr(me()), sv.addr(other)]),
+  payoutCombo: (id, other, group, debts, billTo, billAmount) =>
+    call('circle', 'payout_combo', [
+      sv.u32(id), sv.addr(me()), sv.addr(other), sv.u32(group),
+      sv.vec(debts.map((d) => sv.struct({ amount: sv.i128(toUnits(d.amount)), to: sv.addr(d.to) }))),
+      billTo ? sv.addr(billTo) : sv.none(), sv.i128(toUnits(billAmount || 0)),
+    ]),
+};
+
+// ---------- Settle ----------
+export const settle = {
+  get: (id) => view('settle', 'get_group', [sv.u32(id)]),
+  debts: (id) => view('settle', 'debts', [sv.u32(id)]),
+  create: (name, members, open) => call('settle', 'create_group', [sv.addr(me()), sv.str(name), sv.addrs(members), sv.bool(open)]),
+  join: (id) => call('settle', 'join', [sv.u32(id), sv.addr(me())]),
+  addExpense: (id, amount, participants, memo) =>
+    call('settle', 'add_expense', [sv.u32(id), sv.addr(me()), sv.i128(toUnits(amount)), sv.addrs(participants), sv.str(memo)]),
+  approve: (id) => call('settle', 'approve', [sv.u32(id), sv.addr(me())]),
+  pay: (id, to, amount) => call('settle', 'pay', [sv.u32(id), sv.addr(me()), sv.addr(to), sv.i128(toUnits(amount))]),
+};
+
+// ---------- Claim links ----------
+export const claim = {
+  /** Creates a link: a fresh ed25519 key; its secret goes in the URL fragment. */
+  async create(amount, request = 0) {
+    const kp = Keypair.random();
+    const pub = kp.rawPublicKey();
+    const r = await call('claim', 'create', [sv.addr(me()), sv.i128(toUnits(amount)), sv.bytes(pub), sv.u32(request)]);
+    const secret = StrKey.encodeEd25519SecretSeed(kp.rawSecretKey());
+    return { ...r, id: r.result, url: `${location.origin}/#claim=${r.result}.${secret}` };
+  },
+  get: (id) => view('claim', 'get', [sv.u32(id)]),
+  mine: () => view('claim', 'links_of', [sv.addr(me())]),
+  back: (id) => call('claim', 'claim_back', [sv.u32(id)]),
+  /** Claims to the connected wallet: signs "TM-CLAIM" ‖ id ‖ address XDR with the link key. */
+  async redeem(id, secret) {
+    const kp = Keypair.fromSecret(secret);
+    const idb = Buffer.alloc(4); idb.writeUInt32BE(Number(id));
+    const msg = Buffer.concat([Buffer.from('TM-CLAIM'), idb, new Address(me()).toScVal().toXDR()]);
+    const sig = kp.sign(msg);
+    return bot('claim', { id: Number(id), to: me(), sig: sig.toString('hex') });
+  },
+};
+
+export { scValToNative, Contract };
