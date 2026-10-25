@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       case 'fund': {
         const t = Keypair.fromSecret(process.env.TREASURY_SECRET);
         // keep the demo family solvent: every new wallet costs them ~1,000 test USDC
-        await Promise.all([refill(t, 1500, 4000), refill(B.lea, 500), refill(B.noah, 500), refill(B.hugo, 200), refill(B.ines, 200), refill(B.emma, 200)]);
+        await Promise.all([refill(t, 1500, 4000), refill(B.lea, 800, 1600), refill(B.noah, 800, 1600), refill(B.hugo, 600, 1200), refill(B.ines, 600, 1200), refill(B.emma, 600, 1200)]);
         // idempotent: a retried step does not pay the welcome twice
         const has = BigInt((await simulate(invokeFn(CFG.usdc, 'balance', [sv.addr(me)]))).result || 0);
         if (has >= U(900)) return json(res, 200, { hashes: [] });
@@ -51,8 +51,8 @@ export default async function handler(req, res) {
         const latest = await server.getLatestLedger();
         for (const i of [1, 2, 3, 4, 5]) {
           const allowed = BigInt(await simulate(invokeFn(CFG.usdc, 'allowance', [sv.addr(A(i)), sv.addr(CFG.circle)])).then((x) => x.result || 0));
-          if (allowed >= U(300)) continue;
-          txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.circle), sv.i128(U(2000)), sv.u32(latest.sequence + 150_000)])).hash);
+          if (allowed >= U(1000)) continue;
+          txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.circle), sv.i128(U(20000)), sv.u32(latest.sequence + 150_000)])).hash);
         }
         return json(res, 200, { id: Number(r.result), hashes: txs });
       }
@@ -79,8 +79,8 @@ export default async function handler(req, res) {
         const latest = await server.getLatestLedger();
         for (const i of [1, 2, 3, 4, 5]) {
           const allowed = BigInt(await simulate(invokeFn(CFG.usdc, 'allowance', [sv.addr(A(i)), sv.addr(CFG.settle)])).then((x) => x.result || 0));
-          if (allowed >= U(300)) continue;
-          txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.settle), sv.i128(U(2000)), sv.u32(latest.sequence + 150_000)])).hash);
+          if (allowed >= U(1500)) continue;
+          txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.settle), sv.i128(U(20000)), sv.u32(latest.sequence + 150_000)])).hash);
         }
         return json(res, 200, { id, hashes: txs });
       }
