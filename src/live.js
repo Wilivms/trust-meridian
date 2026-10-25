@@ -40,14 +40,14 @@ async function rates() {
 async function setup(progress = () => {}) {
   if (state.ids && state.ids.done) return state.ids;
   state.ids = state.ids || {};
-  const steps = [['fund', 'Welcome USDC'], ['c1', 'Lopes Family circle'], ['c2', 'Paris–Mexico savers'], ['s1', 'Lisbon weekend group'], ['s1x', 'Lisbon weekend expenses']];
+  const steps = [['fund', 'Welcome USDC'], ['c1', 'Lopes Family circle'], ['c2', 'Paris–Mexico savers'], ['c2x', 'Léa and Noah pay in'], ['s1', 'Lisbon weekend group'], ['s1x', 'Lisbon weekend expenses'], ['s1y', 'More Lisbon expenses']];
   for (const [s, label] of steps) {
     if (state.ids[s] !== undefined) continue;
     progress(label);
     let r;
     // a step can fail on a busy network or during a redeploy: try it three times
     for (let k = 0; ; k++) {
-      try { r = await onboard(s, s === 's1x' ? { group: state.ids.s1 } : {}); break; } catch (e) {
+      try { r = await onboard(s, s === 's1x' || s === 's1y' ? { group: state.ids.s1 } : s === 'c2x' ? { circle: state.ids.c2 } : {}); break; } catch (e) {
         if (k >= 2) throw new Error(`${label}: ${e.message}`);
         progress(`${label} (retrying)`); await new Promise((ok) => setTimeout(ok, 4000 * (k + 1)));
       }

@@ -55,22 +55,34 @@ export default async function handler(req, res) {
       }
       case 'c2': {
         const r = await act(B, 'lea', CFG.circle, 'create', [sv.addr(A(1)), sv.str('Paris–Mexico savers'), sv.i128(U(200)), sv.i128(U(20)), vec([0, 1, 4].map((i) => sv.addr(A(i)))), sv.u32(3), sv.bool(false)]);
-        const id = Number(r.result); txs.push(r.hash);
-        txs.push((await act(B, 'noah', CFG.circle, 'join', [sv.u32(id), sv.addr(A(4))])).hash);
-        txs.push((await act(B, 'lea', CFG.circle, 'pay', [sv.u32(id), sv.addr(A(1))])).hash);
-        txs.push((await act(B, 'noah', CFG.circle, 'pay', [sv.u32(id), sv.addr(A(4))])).hash);
-        return json(res, 200, { id, hashes: txs });
+        return json(res, 200, { id: Number(r.result), hashes: [r.hash] });
+      }
+      case 'c2x': {
+        // Noah joins with his deposit, Léa and Noah pay in (each step skipped if already done)
+        const id = Number(body.circle);
+        const c = (await simulate(invokeFn(CFG.circle, 'get_circle', [sv.u32(id)]))).result;
+        const ix = (i) => c.members.indexOf(A(i));
+        if (!(Number(c.deposits[ix(4)]) > 0)) txs.push((await act(B, 'noah', CFG.circle, 'join', [sv.u32(id), sv.addr(A(4))])).hash);
+        if (!c.paid[ix(1)]) txs.push((await act(B, 'lea', CFG.circle, 'pay', [sv.u32(id), sv.addr(A(1))])).hash);
+        if (!c.paid[ix(4)]) txs.push((await act(B, 'noah', CFG.circle, 'pay', [sv.u32(id), sv.addr(A(4))])).hash);
+        return json(res, 200, { hashes: txs });
       }
       case 's1': {
         const all = [0, 1, 2, 3, 4, 5];
         const r = await act(B, 'lea', CFG.settle, 'create_group', [sv.addr(A(1)), sv.str('Lisbon weekend'), vec(all.map((i) => sv.addr(A(i)))), sv.bool(false)]);
         const id = Number(r.result); txs.push(r.hash);
+        // Family members keep a capped allowance to the Settle contract so a half-group vote can settle
+        // (shared by every group: only topped up when it runs low)
         const latest = await server.getLatestLedger();
-        // Family members pre-approve a capped allowance so a half-group vote can settle.
-        for (const i of [1, 2, 3, 4, 5]) txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.settle), sv.i128(U(400)), sv.u32(latest.sequence + 150_000)])).hash);
+        for (const i of [1, 2, 3, 4, 5]) {
+          const allowed = BigInt(await simulate(invokeFn(CFG.usdc, 'allowance', [sv.addr(A(i)), sv.addr(CFG.settle)])).then((x) => x.result || 0));
+          if (allowed >= U(300)) continue;
+          txs.push((await act(B, NAMES[i], CFG.usdc, 'approve', [sv.addr(A(i)), sv.addr(CFG.settle), sv.i128(U(2000)), sv.u32(latest.sequence + 150_000)])).hash);
+        }
         return json(res, 200, { id, hashes: txs });
       }
-      case 's1x': {
+      case 's1x':
+      case 's1y': {
         // the family's expenses already in the group (USDC at the Reflector rate)
         const SEED = [
           [1, 690 / 0.862, [0, 1, 2, 3, 4, 5], 'Hotel in Alfama, 4 nights'],
@@ -80,7 +92,7 @@ export default async function handler(req, res) {
           [4, 1850 / 18.5, [0, 1, 2, 3, 4, 5], 'Concert tickets'],
           [5, 480 / 5.4, [0, 3, 4, 5], 'Groceries at the market'],
         ];
-        for (const [p, usd, parts, memo] of SEED) {
+        for (const [p, usd, parts, memo] of (body.step === 's1x' ? SEED.slice(0, 3) : SEED.slice(3))) {
           txs.push((await act(B, NAMES[p], CFG.settle, 'add_expense', [sv.u32(body.group), sv.addr(A(p)), sv.i128(U(usd.toFixed(6))), vec(parts.map((i) => sv.addr(A(i)))), sv.str(memo)])).hash);
         }
         return json(res, 200, { hashes: txs });
