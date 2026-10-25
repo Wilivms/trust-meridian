@@ -22,6 +22,13 @@ if (step === 'all' || step === 'circle') {
   console.log('circle state', JSON.stringify({ round: c.round, account: c.account?.toString(), deposits: c.deposits.map(String), advances: c.advances.map(String) }));
   fs.writeFileSync('.secrets/e2e-circle', String(id));
 }
+if (step === 'all' || step === 'park') {
+  const r = await invoke(lea, D.circle, 'create', [sv.addr(lea.publicKey()), sv.str('Weekend fund'), sv.i128(U(10)), sv.i128(0), vec([sv.addr(noah.publicKey()), sv.addr(emma.publicKey())]), sv.u32(5), sv.bool(false)]);
+  log('circle.create', r); const id = r.ret;
+  for (const k of [lea, noah, emma]) log('circle.pay', await invoke(k, D.circle, 'pay', [sv.u32(id), sv.addr(k.publicKey())]));
+  log('circle.park → DeFindex → XOXNO', await invoke(lea, D.circle, 'park', [sv.u32(id), sv.addr(lea.publicKey())]));
+  log('circle.payout (unpark)', await invoke(lea, D.circle, 'payout', [sv.u32(id), sv.addr(lea.publicKey()), sv.addr(noah.publicKey())], [noah]));
+}
 if (step === 'all' || step === 'settle') {
   const r = await invoke(lea, D.settle, 'create_group', [sv.addr(lea.publicKey()), sv.str('Lisbon weekend'), vec([sv.addr(noah.publicKey()), sv.addr(emma.publicKey())]), sv.bool(false)]);
   log('settle.create_group', r); const g = r.ret;

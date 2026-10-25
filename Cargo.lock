@@ -1914,6 +1914,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tm-xoxno-strategy"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+ "xoxno-contract-sdk",
+]
+
+[[package]]
 name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

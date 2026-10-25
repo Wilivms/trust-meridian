@@ -15,7 +15,7 @@ How Trust Meridian was built during HackMeridian (Lisbon, 25–26 October 2026):
   - **Advance on your turn**: a member borrows up to half of their deposit from XOXNO now; the debt is repaid automatically from their pot when their turn comes.
   - **One payout, three uses**: `payout_combo` pays the beneficiary, clears their Settle debts and pays a Cover bill in one atomic transaction.
 - **Claim**: send money to someone without a wallet. The link carries a one-time ed25519 key; the claimer signs their new address with it, so a claim seen in the mempool cannot be redirected. The sender can take the money back for 0.10 USDC while nobody has claimed.
-- 16 unit tests, including XOXNO's own protocol fixture for deposits, late cover and advances.
+- 17 unit tests, including XOXNO's own protocol fixture for deposits, late cover and advances.
 
 ### Problems met
 
@@ -36,3 +36,12 @@ How Trust Meridian was built during HackMeridian (Lisbon, 25–26 October 2026):
 - Contracts first extended their storage TTL to 60 days on every write; at the current rent rate that made creating a circle cost over 12,000 XLM. TTL extensions now keep entries alive 8 days and only bump when below 1 day: creating a circle costs about 5 XLM, or about 98 XLM when it opens a new XOXNO account.
 - XOXNO calls are not fully predictable at simulation time (prices move), so submissions add a 30% instruction margin.
 - The DeFindex testnet vaults hold Blend's test USDC, a different asset from the Circle USDC used by XOXNO and Trustless Work.
+
+## 3 · DeFindex × XOXNO
+
+- The DeFindex testnet vaults hold another test USDC, so Trust Meridian ships its own **DeFindex strategy backed by XOXNO Lending** (`contracts/xoxno-strategy`): same interface as the official strategies (`asset`, `deposit`, `withdraw`, `balance`, `harvest`), supplying the vault's USDC to XOXNO.
+- A DeFindex vault for Circle USDC was created through the official DeFindex factory with that strategy, and Circle parks its idle pot there: pot → DeFindex vault → XOXNO supply, and back at payout. Verified on testnet by `scripts/e2e.mjs park`.
+
+### Problems met
+
+- The vault constructor trapped without an error code: the vault name is prefixed with "DeFindex-Vault-" and a long name broke it. A short name fixed it.
