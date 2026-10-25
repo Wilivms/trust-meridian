@@ -256,8 +256,10 @@ export const anchor = {
       const mine = c.switch().name === 'sorobanCredentialsAddress' && Address.fromScAddress(c.address().address()).toString() === me();
       out.push(mine ? await k.signAuthEntry(e, { contextRuleIds: await ruleIds(k, e) }) : e);
     }
-    const b64 = xdr.SorobanAuthorizationEntries.toXDR(out).toString('base64');
-    const t = await fetch(`${ANCHOR.base}/sep45/auth`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ authorization_entries: b64 }) });
+    // encoded by hand: the kit's signed entry may come from its own copy of the XDR types
+    const len = Buffer.alloc(4); len.writeUInt32BE(out.length);
+    const b64 = Buffer.concat([len, ...out.map((e) => Buffer.from(e.toXDR('base64'), 'base64'))]).toString('base64');
+    const t = await fetch(`${ANCHOR.base}/sep45/auth`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ authorization_entries: b64, authorizationEntries: b64 }) });
     const tj = await t.json(); if (!t.ok || !tj.token) throw new Error(tj.error || 'Anchor sign-in failed');
     anchorToken = { jwt: tj.token, until: Date.now() + 20 * 60e3 };
     return tj.token;
