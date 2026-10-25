@@ -2,7 +2,7 @@
 // one or a few transactions, signed by the family members the server plays).
 //   fund   – 1,000 test USDC from the treasury
 //   c1     – "Lopes Family" circle (100 USDC/month, 6 members, Hugo's turn)
-//   c2     – "Paris–Lagos savers" (200 USDC, deposits on XOXNO), Léa and Noah paid
+//   c2     – "Paris–Mexico savers" (200 USDC, deposits on XOXNO), Léa and Noah paid
 //   s1     – "Lisbon weekend" Settle group, with the family's expenses
 // FAM index → member: 0 you, 1 lea, 2 hugo, 3 ines, 4 noah, 5 emma
 import { Keypair, xdr } from '@stellar/stellar-sdk';
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
         return json(res, 200, { id: Number(r.result), hashes: txs });
       }
       case 'c2': {
-        const r = await act(B, 'lea', CFG.circle, 'create', [sv.addr(A(1)), sv.str('Paris–Lagos savers'), sv.i128(U(200)), sv.i128(U(20)), vec([0, 1, 4].map((i) => sv.addr(A(i)))), sv.u32(3), sv.bool(false)]);
+        const r = await act(B, 'lea', CFG.circle, 'create', [sv.addr(A(1)), sv.str('Paris–Mexico savers'), sv.i128(U(200)), sv.i128(U(20)), vec([0, 1, 4].map((i) => sv.addr(A(i)))), sv.u32(3), sv.bool(false)]);
         const id = Number(r.result); txs.push(r.hash);
         txs.push((await act(B, 'noah', CFG.circle, 'join', [sv.u32(id), sv.addr(A(4))])).hash);
         txs.push((await act(B, 'lea', CFG.circle, 'pay', [sv.u32(id), sv.addr(A(1))])).hash);
@@ -74,10 +74,10 @@ export default async function handler(req, res) {
         // the family's expenses already in the group (USDC at the Reflector rate)
         const SEED = [
           [1, 690 / 0.862, [0, 1, 2, 3, 4, 5], 'Hotel in Alfama, 4 nights'],
-          [3, 640 / 1.532, [0, 1, 2, 3, 4, 5], 'Villa in Sintra, 2 nights'],
-          [2, 31500 / 148.4, [0, 1, 2, 3, 4, 5], 'Dinner in Bairro Alto'],
-          [1, 420 / 3.5, [0, 1, 2, 3], 'Boat trip on the Tagus'],
-          [4, 154000 / 1540, [0, 1, 2, 3, 4, 5], 'Concert tickets'],
+          [3, 572 / 1.37, [0, 1, 2, 3, 4, 5], 'Villa in Sintra, 2 nights'],
+          [2, 159 / 0.75, [0, 1, 2, 3, 4, 5], 'Dinner in Bairro Alto'],
+          [1, 103.4 / 0.862, [0, 1, 2, 3], 'Boat trip on the Tagus'],
+          [4, 1850 / 18.5, [0, 1, 2, 3, 4, 5], 'Concert tickets'],
           [5, 480 / 5.4, [0, 3, 4, 5], 'Groceries at the market'],
         ];
         for (const [p, usd, parts, memo] of SEED) {

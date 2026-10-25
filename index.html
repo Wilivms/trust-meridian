@@ -578,7 +578,7 @@ button.item:hover{transform:translateY(-2px)}
     <div class="chap" data-i="4">
       <div class="eyebrow">Circle · Settle · Cover</div>
       <h2>Three ways <em>to move money home.</em></h2>
-      <p>Save together in a circle, settle shared costs in one move, and pay a relative's bills back home. Here, Léa in Paris covers Tobi's school fees in Lagos: one passkey signature, and the school is paid in seconds.</p>
+      <p>Save together in a circle, settle shared costs in one move, and pay a relative's bills back home. Here, Léa in Paris covers Mateo's school fees in Mexico City: one passkey signature, and the school is paid in seconds.</p>
     </div>
     <div class="chap" data-i="5">
       <div class="eyebrow">Trust Meridian</div>
@@ -624,21 +624,21 @@ const wrap = (x) => Math.atan2(Math.sin(x), Math.cos(x));
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /* ---------- demo data (made-up rates: units per 1 USDC) ---------- */
-const FX = { XLM: 3.5, EURC: 0.862, GYEN: 148.4, AUDD: 1.532, NGNC: 1540, BRL: 5.4, USDC: 1 };
-const DEC = { XLM: 2, EURC: 2, GYEN: 0, AUDD: 2, NGNC: 0, BRL: 2, USDC: 2 };
+const FX = { XLM: 3.5, EURC: 0.862, GBP: 0.75, CAD: 1.37, MXN: 18.5, BRL: 5.4, USDC: 1 };
+const DEC = { XLM: 2, EURC: 2, GBP: 2, CAD: 2, MXN: 2, BRL: 2, USDC: 2 };
 const num = (v, c) => new Intl.NumberFormat('en-US', { minimumFractionDigits: DEC[c], maximumFractionDigits: DEC[c] }).format(v);
 const fmt = (v, c) => num(v, c) + ' ' + c;
 const FAM = [
   { name: 'You',  city: 'Nova Lumen',   cur: 'USDC', sym: '✦', color: '#9b8cff', mon: 'crystal',  lon: -28,   lat: -46 },
   { name: 'Léa',  city: 'Paris',        cur: 'EURC', sym: '€', color: '#5b9dff', mon: 'eiffel',   lon: 2.3,   lat: 48.9 },
-  { name: 'Hugo', city: 'Tokyo',        cur: 'GYEN', sym: '¥', color: '#ff6b6b', mon: 'fuji',     lon: 139.7, lat: 35.7 },
-  { name: 'Inès', city: 'Sydney',       cur: 'AUDD', sym: 'A$', color: '#2fd1b8', mon: 'opera',   lon: 151.2, lat: -33.9 },
-  { name: 'Noah', city: 'Lagos',        cur: 'NGNC', sym: '₦', color: '#ff9a3c', mon: 'theatre',  lon: 3.4,   lat: 6.5 },
+  { name: 'Hugo', city: 'London',       cur: 'GBP',  sym: '£', color: '#ff6b6b', mon: 'bigben',   lon: -0.13, lat: 51.5 },
+  { name: 'Inès', city: 'Toronto',      cur: 'CAD',  sym: 'C$', color: '#2fd1b8', mon: 'cntower',  lon: -79.4, lat: 43.65 },
+  { name: 'Noah', city: 'Mexico City',  cur: 'MXN',  sym: 'MX$', color: '#ff9a3c', mon: 'angel',  lon: -99.13, lat: 19.43 },
   { name: 'Emma', city: 'São Paulo',    cur: 'BRL',  sym: 'R$', color: '#c77dff', mon: 'masp',     lon: -46.6, lat: -23.6 },
 ];
 const SECT = PI / 3;
 FAM.forEach((f, i) => { f.a = PI / 2 - i * SECT; });
-const TZS = ['UTC', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney', 'Africa/Lagos', 'America/Sao_Paulo'];
+const TZS = ['UTC', 'Europe/Paris', 'Europe/London', 'America/Toronto', 'America/Mexico_City', 'America/Sao_Paulo'];
 FAM.forEach((f, i) => { f.tz = TZS[i]; });
 const faces = (ids) => `<span class="faces">${ids.map((i) => `<i style="background:${FAM[i].color}"></i>`).join('')}</span>`;
 const per = (freq) => (freq === 'weekly' ? 'week' : 'month');
@@ -875,7 +875,7 @@ const geo = {
   trunk: (() => { const g = new THREE.CylinderGeometry(0.1, 0.16, 2.6, 6); return g; })(),
 };
 const sandMat = lam(0xead6a6), treeMat = lam(0x4f9e6e), whiteMat = lam(0xf7f4ec), trunkMat = lam(0x8a6a48), palmMat = lam(0x3f9a5c);
-const MON_R = { crystal: 2.8, eiffel: 1.9, fuji: 5.2, opera: 3, theatre: 3.6, masp: 3.4 };
+const MON_R = { crystal: 2.8, eiffel: 1.9, bigben: 1.7, cntower: 2, angel: 2.3, masp: 3.4 };
 function palm(parent, p, s = 1) {
   const g = add(new THREE.Group(), parent); g.position.copy(p); g.scale.setScalar(s);
   const tr = sh(new THREE.Mesh(geo.trunk, trunkMat)); tr.position.y = 1.3; tr.rotation.z = 0.12; g.add(tr);
@@ -898,22 +898,36 @@ function monument(f) {
     m(new THREE.BoxGeometry(1.2, 0.22, 1.2), iron, 0, 7.25, 0);
     m(new THREE.CylinderGeometry(0.08, 0.45, 4.6, 4), iron, 0, 9.65, 0).rotation.y = PI / 4;
     m(new THREE.SphereGeometry(0.16, 8, 6), lam(0xffd23f, { emissive: 0xffb000, emissiveIntensity: 0.9 }), 0, 12.1, 0);
-  } else if (f.mon === 'fuji') {
-    m(new THREE.ConeGeometry(5.2, 6.6, 44), lam(0x8ea3c9), 0, 3.3, 0);
-    m(new THREE.ConeGeometry(2.15, 2.7, 44), lam(0xffffff), 0, 5.26, 0);
-    const red = lam(0xe0473a);
-    [-1.1, 1.1].forEach((x) => m(new THREE.CylinderGeometry(0.13, 0.16, 2.3, 10), red, x, 1.15, 6.4));
-    m(new THREE.BoxGeometry(3.1, 0.22, 0.32), lam(0x22263a), 0, 2.38, 6.4);
-    m(new THREE.BoxGeometry(2.5, 0.16, 0.22), red, 0, 1.9, 6.4);
-  } else if (f.mon === 'opera') {
-    m(new THREE.BoxGeometry(5.4, 0.55, 3.4), lam(0xe9e0cc), 0, 0.27, 0);
-    const shell = new THREE.SphereGeometry(1.6, 28, 14, 0, PI, 0, PI / 2);
-    const sm = lam(0xffffff, { side: THREE.DoubleSide });
-    [[-1.5, 1.05], [0, 1.25], [1.45, 0.9]].forEach(([x, s], i) => { const o = m(shell, sm, x, 0.55, 0.2 * (i - 1)); o.scale.set(0.75 * s, 1.75 * s, 1.05 * s); o.rotation.y = -PI / 2 + 0.25; });
-  } else if (f.mon === 'theatre') {
-    m(new THREE.CylinderGeometry(3, 3.3, 1.8, 32), lam(0xeae1cf), 0, 0.9, 0);
-    m(new THREE.CylinderGeometry(3.06, 3.06, 0.26, 32), lam(0x2e9b62), 0, 1.55, 0);
-    m(new THREE.CylinderGeometry(3.5, 3.05, 0.5, 32), lam(0x3c4660), 0, 2.05, 0);
+  } else if (f.mon === 'bigben') {
+    // the Elizabeth Tower: sandstone shaft, four lit clock faces, a slate spire
+    const stone = lam(0xd9c28f), slate = lam(0x4c5a4f), face = lam(0xfff6d8, { emissive: 0xffd77a, emissiveIntensity: 0.55 });
+    m(new THREE.BoxGeometry(2.2, 0.5, 2.2), stone, 0, 0.25, 0);
+    m(new THREE.BoxGeometry(1.5, 7.2, 1.5), stone, 0, 4.1, 0);
+    m(new THREE.BoxGeometry(1.8, 1.8, 1.8), stone, 0, 8.5, 0);
+    [[0, 0.91, 0], [0, -0.91, PI], [0.91, 0, PI / 2], [-0.91, 0, -PI / 2]].forEach(([x, z, r]) => { const c = m(new THREE.CircleGeometry(0.62, 28), face, x, 8.5, z); c.rotation.y = r; });
+    m(new THREE.BoxGeometry(1.5, 1.2, 1.5), stone, 0, 10, 0);
+    m(new THREE.ConeGeometry(1.15, 3.2, 4), slate, 0, 12.2, 0).rotation.y = PI / 4;
+    m(new THREE.SphereGeometry(0.14, 8, 6), lam(0xffd23f, { emissive: 0xffb000, emissiveIntensity: 0.9 }), 0, 13.9, 0);
+  } else if (f.mon === 'cntower') {
+    // the CN Tower: a tapered concrete shaft, the pod, the antenna
+    const conc = lam(0xd6d1c8), pod = lam(0x56606e, { emissive: 0x1b2430, emissiveIntensity: 0.3 });
+    m(new THREE.CylinderGeometry(1.6, 1.9, 0.5, 24), conc, 0, 0.25, 0);
+    m(new THREE.CylinderGeometry(0.32, 0.9, 11, 12), conc, 0, 5.9, 0);
+    m(new THREE.CylinderGeometry(1.45, 1.1, 1, 28), pod, 0, 8.6, 0);
+    m(new THREE.TorusGeometry(1.45, 0.12, 8, 40), lam(0xfff1c0, { emissive: 0xffd77a, emissiveIntensity: 0.6 }), 0, 8.6, 0).rotation.x = PI / 2;
+    m(new THREE.CylinderGeometry(0.42, 0.42, 0.5, 16), pod, 0, 11.2, 0);
+    m(new THREE.CylinderGeometry(0.06, 0.16, 4, 8), lam(0xe9e4dc), 0, 13.4, 0);
+    m(new THREE.SphereGeometry(0.13, 8, 6), lam(0xff4a3d, { emissive: 0xff2a1a, emissiveIntensity: 1 }), 0, 15.45, 0);
+  } else if (f.mon === 'angel') {
+    // the Angel of Independence: a stepped plinth, a column, the golden Victory
+    const stone = lam(0xd6cfbf), gold = lam(0xffd23f, { emissive: 0xc98a00, emissiveIntensity: 0.6 });
+    m(new THREE.BoxGeometry(4.2, 0.5, 4.2), stone, 0, 0.25, 0);
+    m(new THREE.BoxGeometry(3, 1.2, 3), stone, 0, 1.1, 0);
+    m(new THREE.CylinderGeometry(0.45, 0.55, 7.6, 20), stone, 0, 5.5, 0);
+    m(new THREE.CylinderGeometry(0.75, 0.55, 0.5, 20), stone, 0, 9.5, 0);
+    m(new THREE.ConeGeometry(0.4, 1.3, 10), gold, 0, 10.4, 0);
+    m(new THREE.SphereGeometry(0.2, 10, 8), gold, 0, 11.2, 0);
+    [-1, 1].forEach((x) => { const w = m(new THREE.BoxGeometry(1.1, 0.5, 0.06), gold, x * 0.5, 10.9, -0.1); w.rotation.z = x * 0.5; });
   } else if (f.mon === 'masp') {
     // MASP: a glass box hung between two red concrete frames, a free plaza underneath
     const red = lam(0xd2352b), conc = lam(0xd8d4cc), glass = lam(0x2b3a48, { emissive: 0x0d1620, emissiveIntensity: 0.3 });
@@ -2138,7 +2152,7 @@ function announce(big, small = '', ms = 2400) {
 }
 
 /* =========================================================
-   APP STATE (demo: 6 cities available)
+   APP STATE (your family)
    ========================================================= */
 const ui = { circle: 'list', settle: 'list', cover: 'list', overview: 'home', settleTab: 'exp', openExp: -1 };
 let busy = false, uid = 10;
@@ -2154,10 +2168,10 @@ const circ = () => circles.find((c) => c.id === curCircle);
 const groups = [
   { id: 's1', name: 'Lisbon weekend', members: ALL.slice(), pay: [], exp: [
     { who: 1, what: 'Hotel in Alfama, 4 nights', amt: 690, cur: 'EURC', parts: ALL.slice() },
-    { who: 3, what: 'Villa in Sintra, 2 nights', amt: 640, cur: 'AUDD', parts: ALL.slice() },
-    { who: 2, what: 'Dinner in Bairro Alto', amt: 31500, cur: 'GYEN', parts: ALL.slice() },
-    { who: 1, what: 'Boat trip on the Tagus', amt: 420, cur: 'XLM', parts: [0, 1, 2, 3] },
-    { who: 4, what: 'Concert tickets', amt: 154000, cur: 'NGNC', parts: ALL.slice() },
+    { who: 3, what: 'Villa in Sintra, 2 nights', amt: 572, cur: 'CAD', parts: ALL.slice() },
+    { who: 2, what: 'Dinner in Bairro Alto', amt: 159, cur: 'GBP', parts: ALL.slice() },
+    { who: 1, what: 'Boat trip on the Tagus', amt: 103.4, cur: 'EURC', parts: [0, 1, 2, 3] },
+    { who: 4, what: 'Concert tickets', amt: 1850, cur: 'MXN', parts: ALL.slice() },
     { who: 5, what: 'Groceries at the market', amt: 480, cur: 'BRL', parts: [0, 3, 4, 5] },
   ] },
 ];
@@ -2170,7 +2184,7 @@ const grp = () => groups.find((g) => g.id === curGroup);
 
 const REASONS = ['School', 'Health', 'Electricity', 'Rent', 'Other'];
 const requests = [
-  { id: 'r1', by: 4, for: 'Tobi', city: 4, reason: 'School', title: 'School fees for the term', payee: "Tobi's school", amt: 185000, msg: 'School starts in two weeks and they want the full term upfront.', status: 'open' },
+  { id: 'r1', by: 4, for: 'Mateo', city: 4, reason: 'School', title: 'School fees for the term', payee: "Mateo's school", amt: 2200, msg: 'School starts in two weeks and they want the full term upfront.', status: 'open' },
   { id: 'r2', by: 5, for: 'Vó Lúcia', city: 5, reason: 'Health', title: 'Pharmacy, monthly treatment', short: 'pharmacy bill', payee: 'the neighbourhood pharmacy', amt: 260, msg: 'Her monthly treatment, due this week.', status: 'open' },
   { id: 'r3', by: 2, for: 'Hugo', city: 2, reason: 'Rent', title: 'Studio rent', payee: 'the landlord', amt: 95000, msg: '', status: 'paid', paidBy: 1 },
 ];
@@ -2252,9 +2266,7 @@ function renderCircleList() {
       <p class="lede">A savings circle across countries: everyone pays the same value in their own currency, and the pot rotates. Members join with a passkey: no seed phrase, no gas.</p></div>
     <div class="actions"><button class="btn" data-act="c-new">Create a circle</button></div>
     <div class="sec"><div class="sec-h"><span>My circles</span><span>${circles.length}</span></div>${circles.map(circleItem).join('')}</div>
-    <div class="sec"><div class="sec-h"><span>Open circles to join</span></div>
-      ${publicCircles.map((p) => `<div class="item"><span><b>${esc(p.name)}</b><small>${p.live ? 'Hosted on stage by Wiliams · 1 USDC · no deposit' : `${p.members.map((i) => FAM[i].city).join(' · ')} · ${p.amount} USDC per ${per(p.freq)} · your deposit ${depositFor(p.amount)} USDC (${depositPct()}%)`}</small></span><span class="side">${p.requested ? `<span class="chip ok">${p.live ? 'Joined' : 'Request sent'}</span>` : `<button class="btn ${p.live ? '' : 'ghost '}sm" data-act="c-join" data-id="${p.id}">${p.live ? 'Join now' : 'Request to join'}</button>`}</span></div>`).join('')}
-    </div>`;
+`;
 }
 function renderCircleDetail() {
   const c = circ(), b = ben(c), total = c.amount * c.members.length;
@@ -2282,7 +2294,7 @@ function renderCircleDetail() {
     <p class="note">Late payment: 48 hours of grace, then the member's deposit covers the share. A second miss adds a 2% penalty, or the group votes to move their turn.</p>
     <div class="actions">
       ${c.members.length > 1 ? `<button class="btn ghost" data-act="c-others" ${busy || others ? 'disabled' : ''}>Others pay in</button>` : ''}
-      <button class="btn ghost" data-act="c-you" ${busy || c.paid[0] ? 'disabled' : ''}>Pay ${fmt(c.amount * FX.XLM, 'XLM')}</button>
+      <button class="btn ghost" data-act="c-you" ${busy || c.paid[0] ? 'disabled' : ''}>Pay ${fmt(c.amount, 'USDC')}</button>
       ${b === FAM[0] ? `<button class="btn" data-act="c-combo" ${busy || !allPaid(c) ? 'disabled' : ''}>Receive &amp; use it…</button><button class="btn ghost" data-act="c-payout" ${busy || !allPaid(c) ? 'disabled' : ''}>Just receive the pot</button>` : `<button class="btn" data-act="c-payout" ${busy || !allPaid(c) ? 'disabled' : ''}>Send the pot to ${b.name} · 2 approvals</button>`}
     </div>`;
 }
@@ -2295,7 +2307,7 @@ function renderCircleNew() {
       <div class="field"><label for="cn">Circle name</label><input id="cn" maxlength="40" placeholder="e.g. The Dakar cousins"></div>
       <div class="two"><div class="field"><label for="ca">Contribution (USDC)</label><input id="ca" type="number" min="5" step="5" value="50"></div>
       <div class="field"><label for="cf">Frequency</label><select id="cf"><option value="monthly">Monthly</option><option value="weekly">Weekly</option></select></div></div>
-      <div class="field"><span class="lab">Members (demo: 6 cities available)</span>${memberPicks('cm', [0])}</div>
+      <div class="field"><span class="lab">Members (your family)</span>${memberPicks('cm', [0])}</div>
       <p class="err" id="cerr"></p>
       <div class="actions"><button class="btn" type="submit">Create and invite</button></div>
     </form>`;
@@ -2327,7 +2339,7 @@ function transfers(g) {
 async function settleAll() {
   const g = grp(), list = transfers(g); if (!list.length) return;
   const usd = list.reduce((s, t) => s + t.usd, 0);
-  const h = await onChain(`${g.name}: ${list.length} transfers settled in one transaction`, 'atomic transaction', `${list.length} transfers · 1 transaction`, (L) => L.settle());
+  const h = await onChain(`${g.name}: ${list.length} transfers settled in one transaction`, 'atomic transaction', `${list.length} transfers · 1 transaction`, (L) => L.settle(g.id));
   camFocus = { t: SP.clone(), r: 78, pitch: 0.74, yaw: 0.95, until: clock + 4 };
   list.forEach((t) => pulse(FAM[t.from].settleHub));
   await Promise.all(list.map((t, j) => Promise.all([0, 1, 2, 3].map((k) => coinArc(FAM[t.from].settleHub, FAM[t.to].settleHub, 10, 1.4, j * 0.15 + k * 0.11)))));
@@ -2371,9 +2383,7 @@ function renderSettleList() {
     <div class="actions"><button class="btn" data-act="s-new">New shared account</button></div>
     <div class="sec"><div class="sec-h"><span>My accounts</span><span>${groups.length}</span></div>
       ${groups.map((g) => { const left = transfers(g).length; return `<button class="item" data-act="s-open" data-id="${g.id}"><span><b>${esc(g.name)}</b><small>${g.members.length} people · ${g.exp.length} expenses · ${fmt(groupTotal(g), 'USDC')}</small></span><span class="side">${left ? `<span class="chip open">${left} to settle</span>` : '<span class="chip ok">Settled</span>'}${faces(g.members)}</span></button>`; }).join('')}</div>
-    <div class="sec"><div class="sec-h"><span>Open accounts to join</span></div>
-      ${publicGroups.map((p) => `<div class="item"><span><b>${esc(p.name)}</b><small>${p.members.map((i) => FAM[i].city).join(' · ')}</small></span><span class="side">${p.requested ? '<span class="chip ok">Request sent</span>' : `<button class="btn ghost sm" data-act="s-join" data-id="${p.id}">Request to join</button>`}</span></div>`).join('')}
-    </div>`;
+`;
 }
 function renderSettleDetail() {
   const g = grp(), total = groupTotal(g), list = transfers(g), net = ledger(g);
@@ -2406,7 +2416,7 @@ function renderSettleNew() {
     <p class="lede">A trip together, a joint project, a wedding: invite people, and everyone keeps their own currency.</p></div>
     <form id="f-group" class="sec" novalidate>
       <div class="field"><label for="gn">Name</label><input id="gn" maxlength="40" placeholder="e.g. Holidays in Dakar"></div>
-      <div class="field"><span class="lab">Participants (demo: 6 cities available)</span>${memberPicks('gm', [0])}</div>
+      <div class="field"><span class="lab">Participants (your family)</span>${memberPicks('gm', [0])}</div>
       <p class="err" id="gerr"></p>
       <div class="actions"><button class="btn" type="submit">Create account</button></div>
     </form>`;
@@ -2510,7 +2520,7 @@ function renderCoverNew() {
       <div class="two"><div class="field"><label for="rf">For whom</label><input id="rf" maxlength="30" placeholder="e.g. Mum"></div>
       <div class="field"><label for="rc">City</label><select id="rc">${FAM.map((f, i) => `<option value="${i}" ${i === 4 ? 'selected' : ''}>${f.city}</option>`).join('')}</select></div></div>
       <div class="two"><div class="field"><label for="rr">Reason</label><select id="rr">${REASONS.map((x) => `<option>${x}</option>`).join('')}</select></div>
-      <div class="field"><label for="ra">Amount (<span id="rcur">NGNC</span>)</label><input id="ra" type="number" min="0" step="any" placeholder="0"></div></div>
+      <div class="field"><label for="ra">Amount (<span id="rcur">MXN</span>)</label><input id="ra" type="number" min="0" step="any" placeholder="0"></div></div>
       <div class="field"><label for="rt">Title</label><input id="rt" maxlength="60" placeholder="e.g. Hospital visit"></div>
       <div class="field"><label for="rp">Paid directly to</label><input id="rp" maxlength="50" placeholder="e.g. the local clinic"></div>
       <div class="field"><label for="rm">Message to the family (optional)</label><textarea id="rm" maxlength="200"></textarea></div>
@@ -2521,7 +2531,7 @@ function renderCoverNew() {
 
 /* ---------- panel rendering and events ---------- */
 const panel = $('#panel'), panelIn = $('#panelIn');
-const NOTE = '<p class="note">Visual prototype: rates, amounts and transactions are simulated.</p>';
+const NOTE = '';
 function render() {
   let h = '';
   if (mode === 'circle') h = ui.circle === 'list' ? renderCircleList() : ui.circle === 'new' ? renderCircleNew() : renderCircleDetail();
@@ -2580,19 +2590,23 @@ panel.addEventListener('submit', (e) => {
     if (!name) { $('#cerr').textContent = 'Give the circle a name.'; return; }
     if (!(amount >= 5)) { $('#cerr').textContent = 'The minimum contribution is 5 USDC.'; return; }
     if (members.length < 2) { $('#cerr').textContent = 'Add at least one other member.'; return; }
-    const c = { id: 'c' + uid++, name, members, amount, freq: $('#cf').value, round: 0, paid: [], status: 'pending' };
-    circles.push(c);
-    go(() => { curCircle = c.id; ui.circle = 'detail'; applyCircleMembers(); });
-    announce('Invitations sent', `${members.length - 1} members invited to “${name}”`);
+    const c = { id: 'c' + uid++, name, members, amount, freq: $('#cf').value, round: 0, paid: [], status: 'active' };
+    onChain(`Circle “${name}” created with ${members.length} members`, 'circle · create', `New circle · ${members.length} members`, (L) => L.createCircle(c.id, name, amount, members)).then(() => {
+      circles.push(c);
+      go(() => { curCircle = c.id; ui.circle = 'detail'; applyCircleMembers(); });
+      announce('Circle created', `${members.length} members, ${num(amount, 'USDC')} USDC each round`);
+    }).catch(() => {});
   }
   if (f.id === 'f-group') {
     const name = $('#gn').value.trim(), members = [0, ...picked('gm').filter((i) => i !== 0)];
     if (!name) { $('#gerr').textContent = 'Give the account a name.'; return; }
     if (members.length < 2) { $('#gerr').textContent = 'Add at least one other participant.'; return; }
     const g = { id: 'g' + uid++, name, members, exp: [], pay: [] };
-    groups.push(g);
-    go(() => { curGroup = g.id; ui.settle = 'detail'; ui.settleTab = 'exp'; ui.openExp = -1; });
-    announce('Account created', `${members.length} participants`);
+    onChain(`Shared account “${name}” created`, 'settle · create_group', `New account · ${members.length} people`, (L) => L.createGroup(g.id, name, members)).then(() => {
+      groups.push(g);
+      go(() => { curGroup = g.id; ui.settle = 'detail'; ui.settleTab = 'exp'; ui.openExp = -1; });
+      announce('Account created', `${members.length} participants`);
+    }).catch(() => {});
   }
   if (f.id === 'f-exp') {
     const what = $('#et').value.trim(), amt = +$('#ea').value, cur = $('#ec').value, who = +$('#ew').value, parts = picked('ep');
@@ -2604,7 +2618,7 @@ panel.addEventListener('submit', (e) => {
     pulse(FAM[who].settleHub);
     parts.filter((p) => p !== who).forEach((p, k) => coinArc(FAM[p].settleHub, FAM[who].settleHub, 6, 1, k * 0.08));
     announce('Expense added', `${fmt(amt, cur)} paid by ${FAM[who].name}`);
-    onChain(`${grp().name}: expense added by ${FAM[who].name} (${fmt(amt, cur)})`, 'settle · add_expense', `Expense · ${fmt(amt, cur)}`, (L) => L.addExpense(who, amt / FX[cur], parts, what)).catch(() => {});
+    onChain(`${grp().name}: expense added by ${FAM[who].name} (${fmt(amt, cur)})`, 'settle · add_expense', `Expense · ${fmt(amt, cur)}`, (L) => L.addExpense(who, amt / FX[cur], parts, what, grp().id)).catch(() => {});
   }
   if (f.id === 'f-req') {
     const who = $('#rf').value.trim(), city = +$('#rc').value, amt = +$('#ra').value, title = $('#rt').value.trim(), payee = $('#rp').value.trim();
@@ -2808,7 +2822,7 @@ const Music = (() => {
 
 /* ---------- savings counter: what each payment would have cost at the 6.5% world average ---------- */
 const money = (v) => new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-let saved = 1186.4;
+let saved = 0;
 function addSaved(usd) {
   const gain = usd * 0.065, from = saved; saved += gain;
   tween(1.2, (e) => { $('#savedNum').textContent = '$' + money(from + (saved - from) * e); }, E.out);
@@ -3050,7 +3064,7 @@ const FEATURES = {
     ['Paid straight to the payee', 'One passkey signature sends USDC to the payee on Stellar, confirmed in about five seconds.', ['USDC on Stellar'], 'cover'],
   ] },
   welcome: { name: 'Welcome', em: 'bring your people in', items: [
-    ['Send to someone without a wallet', 'The money waits in a claim contract. The link holds a one-time key; Tobi creates a passkey and claims without paying a thing. You can take it back while nobody has claimed it.', ['claim contract', 'ed25519 one-time key'], 'cover'],
+    ['Send to someone without a wallet', 'The money waits in a claim contract. The link holds a one-time key; Mateo creates a passkey and claims without paying a thing. You can take it back while nobody has claimed it.', ['claim contract', 'ed25519 one-time key'], 'cover'],
     ['Payment links and QR codes', 'Every help request is a link or a QR code any Stellar wallet can pay.', ['SEP-7 payment URIs'], 'cover'],
   ] },
   treasury: { name: 'Treasury', em: 'the family pot', items: [
@@ -3091,7 +3105,7 @@ function renderOverview() {
       <ol class="road">
         <li><span><b>Mainnet, with local anchors</b><small>Cash in and out to banks and mobile money through SEP-24 anchors, signed in with SEP-45 for passkey wallets.</small></span></li>
         <li><span><b>Escrow for bills</b><small>Trustless Work holds a Cover payment until the payee confirms the bill.</small></span></li>
-        <li><span><b>A family allowance, and an agent that pays the bills</b><small>A spending-limit policy on the wallet gives Tobi a weekly budget; the same rule caps an agent paying recurring bills.</small></span></li>
+        <li><span><b>A family allowance, and an agent that pays the bills</b><small>A spending-limit policy on the wallet gives a relative a weekly budget; the same rule caps an agent paying recurring bills.</small></span></li>
         <li><span><b>Recovery by your family</b><small>Two relatives you chose restore a lost passkey, after a safety delay.</small></span></li>
         <li><span><b>A reliability score you can prove</b><small>Circle already records every on-time payment; a zero-knowledge proof would open micro-credit without revealing amounts.</small></span></li>
       </ol>`;
@@ -3203,7 +3217,7 @@ function passportHTML() {
 }
 
 /* ---------- one payout, three uses ---------- */
-circles.push({ id: 'c2', name: 'Paris–Lagos savers', members: [0, 1, 4], amount: 200, freq: 'monthly', round: 0, paid: [true, true, false, false, true], status: 'active', pot: 600, shown: 600 });
+circles.push({ id: 'c2', name: 'Paris–Mexico savers', members: [0, 1, 4], amount: 200, freq: 'monthly', round: 0, paid: [true, true, false, false, true], status: 'active', pot: 600, shown: 600 });
 const COMBO = { settle: true, cover: true };
 function comboParts(c) {
   const total = c.amount * c.members.length, g = groups[0];
@@ -3227,7 +3241,7 @@ function comboHTML() {
         <span><b>Pay back what you owe</b><small>${P.debts.length ? `${esc(P.g.name)} · ${P.debts.map((t) => FAM[t.to].name).join(', ')}` : 'You owe nothing in Settle right now'}</small></span><em>${P.debts.length ? num(P.debtUsd, 'USDC') + ' USDC' : '—'}</em></label>
       <label class="opt ${P.r ? '' : 'off'}"><input type="checkbox" data-combo="cover" ${COMBO.cover && P.r ? 'checked' : ''} ${P.r ? '' : 'disabled'}>
         <span><b>${P.r ? esc(P.r.title) : 'Pay a family bill'}</b><small>${P.r ? `For ${esc(P.r.for)} · ${FAM[P.r.city].city} · ${fmt(P.r.amt, FAM[P.r.city].cur)}` : 'No open help request'}</small></span><em>${P.r ? num(P.billUsd, 'USDC') + ' USDC' : '—'}</em></label>
-      <div class="opt keep"><span><b>You keep</b><small>≈ ${fmt(P.keep * FX.XLM, 'XLM')} in your wallet</small></span><em>${num(P.keep, 'USDC')} USDC</em></div>
+      <div class="opt keep"><span><b>You keep</b><small>stays in your wallet</small></span><em>${num(P.keep, 'USDC')} USDC</em></div>
     </div>
     <div class="sec"><div class="sec-h"><span>What happens in this transaction</span><span>${steps.length} steps</span></div><ol class="road inl">${steps.map((s) => `<li><span><small style="color:var(--text);font-size:13px">${s}</small></span></li>`).join('')}</ol></div>
     <p class="note">All or nothing: if one step fails, nothing moves. Fees sponsored.</p>
@@ -3530,7 +3544,7 @@ const Presenter = (() => {
       await wait(0.6); const s2 = shareHTML(r); sheet.dataset.uri = s2.uri; openSheet(s2.html, () => drawQR($('#qrShare'), s2.uri));
     }),
     S('Cover', 'Pay it', async () => { clean(); await goTo('cover'); K.from = 0; render(); await wait(0.6); await run(payReq); }),
-    S('Cover', 'A claim link for Tobi', async () => {
+    S('Cover', 'A claim link for Mateo', async () => {
       clean(); await goTo('cover'); const r = requests.find((x) => x.id === 'r1'); r.status = 'open'; r.claim = false;
       await view(() => { curReq = 'r1'; ui.cover = 'detail'; K.step = -1; K.from = 0; coverFocus = 4; if (!boatSailing) dockBoat(1); }); await wait(1.2);
       await run(claimLink);
@@ -3831,7 +3845,7 @@ document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('cli
    INTRO: a physical relief globe (real elevation, cross-blended hypsometric tints),
    then four little stories told on it:
    problem → Circle (balloons gather over the Atlantic) → Settle (three airships replace fifteen debts)
-   → Cover (the Meridian sails from Le Havre to Lagos) → trace Greenwich → dive into the Square.
+   → Cover (the Meridian sails from Le Havre to Veracruz) → trace Greenwich → dive into the Square.
    ========================================================= */
 const intro = $('#intro');
 const Intro = (() => {
@@ -4079,8 +4093,8 @@ const Intro = (() => {
   const goldBalls = balls(6, 0xffd23f, 0.09);
   const settleTag = mkTag('', 'coral');
 
-  /* ---------- chapter 4, Cover: the Meridian sails from Le Havre to Lagos ---------- */
-  const ROUTE = [[0.1, 49.9], [-5.8, 48.6], [-10.8, 43.2], [-10.6, 37.2], [-13.8, 28.6], [-18.4, 20.5], [-18.1, 12.4], [-13.8, 7.0], [-6, 3.6], [3.4, 6.0]];
+  /* ---------- chapter 4, Cover: the Meridian sails from Le Havre to Veracruz ---------- */
+  const ROUTE = [[0.1, 49.9], [-5.8, 48.6], [-20, 43], [-40, 33], [-60, 27], [-75, 25.5], [-80.5, 24.2], [-86, 24.5], [-92, 22.5], [-96.1, 19.2]];
   const route = new THREE.CatmullRomCurve3(ROUTE.map(([lon, lat]) => ll(lon, lat, PR + 0.01)), false, 'centripetal');
   const routeTube = tube(new THREE.CatmullRomCurve3(ROUTE.map(([lon, lat]) => ll(lon, lat, PR + 0.03)), false, 'centripetal'), 0xffd23f, 0.014, 240);
   const ship = makeMeridian(); ship.scale.setScalar(0.12); ship.visible = false; pScene.add(ship);

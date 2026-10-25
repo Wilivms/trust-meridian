@@ -29,7 +29,7 @@ async function rates() {
   const { xdr } = await import('@stellar/stellar-sdk');
   const other = (s) => xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Other'), xdr.ScVal.scvSymbol(s)]);
   const out = {};
-  for (const [cur, sym] of [['EURC', 'EUR'], ['BRL', 'BRL']]) {
+  for (const [cur, sym] of [['EURC', 'EUR'], ['GBP', 'GBP'], ['CAD', 'CAD'], ['MXN', 'MXN'], ['BRL', 'BRL']]) {
     const p = await chain.view('reflector', 'lastprice', [other(sym)]);
     if (p && p.price) out[cur] = 1 / (Number(p.price) / 1e14);
   }
@@ -40,7 +40,7 @@ async function rates() {
 async function setup(progress = () => {}) {
   if (state.ids && state.ids.done) return state.ids;
   state.ids = state.ids || {};
-  const steps = [['fund', 'Welcome USDC'], ['c1', 'Lopes Family circle'], ['c2', 'Paris–Lagos savers'], ['s1', 'Lisbon weekend group'], ['s1x', 'Lisbon weekend expenses']];
+  const steps = [['fund', 'Welcome USDC'], ['c1', 'Lopes Family circle'], ['c2', 'Paris–Mexico savers'], ['s1', 'Lisbon weekend group'], ['s1x', 'Lisbon weekend expenses']];
   for (const [s, label] of steps) {
     if (state.ids[s] !== undefined) continue;
     progress(label);
@@ -59,7 +59,8 @@ async function setup(progress = () => {}) {
 }
 
 const ready = () => !!(chain.CFG.live && state.wallet && state.ids && state.ids.done);
-const circleId = (protoId) => (protoId === 'c2' ? state.ids.c2 : state.ids.c1);
+const circleId = (protoId) => state.ids[protoId] ?? state.ids.c1;
+const groupId = (protoId) => state.ids[protoId] ?? state.ids.s1;
 
 export const Live = {
   chain,
@@ -119,14 +120,25 @@ export const Live = {
   },
 
   // ---- Settle
-  async addExpense(who, usd, parts, memo) {
+  async addExpense(who, usd, parts, memo, gid = 's1') {
     const p = []; for (const i of parts) p.push(await addrOf(i));
-    if (who === 0) return chain.settle.addExpense(state.ids.s1, Math.round(usd * 1e6) / 1e6, p, memo);
-    return onboard('expense', { group: state.ids.s1, expense: { payer: who, usd, parts, memo } }).then((r) => ({ hash: r.hashes[0] }));
+    if (who === 0) return chain.settle.addExpense(groupId(gid), Math.round(usd * 1e6) / 1e6, p, memo);
+    return onboard('expense', { group: groupId(gid), expense: { payer: who, usd, parts, memo } }).then((r) => ({ hash: r.hashes[0] }));
+  },
+  /** A new circle or shared account created from the app: the family members are listed on-chain. */
+  async createCircle(protoId, name, amount, members) {
+    const a = []; for (const i of members) a.push(await addrOf(i));
+    const r = await chain.circle.create(name, amount, 0, a, a.length, false);
+    state.ids[protoId] = Number(r.result); save(); return r;
+  },
+  async createGroup(protoId, name, members) {
+    const a = []; for (const i of members) a.push(await addrOf(i));
+    const r = await chain.settle.create(name, a, false);
+    state.ids[protoId] = Number(r.result); save(); return r;
   },
   /** You approve (with a capped allowance if you owe), then family members approve until half the group has. */
-  async settle() {
-    const g = state.ids.s1;
+  async settle(gid = 's1') {
+    const g = groupId(gid);
     const owe = Number(await chain.view('settle', 'needed_allowance', [chain.sv.u32(g), chain.sv.addr(state.wallet)])) / 1e7;
     if (owe > 0) await chain.approveUsdc(chain.CFG.settle, owe + 1);
     let r = await chain.settle.approve(g);
