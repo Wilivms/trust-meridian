@@ -26,7 +26,7 @@ Trust Meridian puts three everyday uses on one passkey wallet:
 | **XOXNO Lending** | Security deposits are supplied while the circle runs; the *advance on your turn* is borrowed against them |
 | **Trustless Work** | Escrow for Cover bills until the payment is confirmed |
 | **Soroswap · Reflector** | Exact-output conversion into the payee's currency, guarded by the oracle price |
-| **Claude (Anthropic)** | Reads a bill photo to pre-fill a Cover request; sums up a combined payout in plain words |
+| **Claude (Anthropic)** | Reads a bill photo to pre-fill a Cover request (Sonnet, vision); sums up a combined payout in plain words (Haiku) |
 | **Supabase** | Real-time harbor, request metadata and the live ledger mirror (money stays on-chain) |
 
 ## Contracts
@@ -67,6 +67,10 @@ Environment variables are listed in `.env.example`. Secrets stay in Vercel and i
 | USDC (Circle, SAC) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` |
 
 Live app: https://trust-meridian-blitz-bet.vercel.app
+
+## Try it
+
+Open the live app on a phone, press the passkey button in the wallet sheet ("Go live on Stellar testnet") and confirm with Face ID or a fingerprint. Setup takes about two minutes: the app receives 1,000 test USDC and joins the family's circles and the Lisbon group. From then on every action is a testnet transaction, with fees sponsored. Press P for presenter mode.
 
 ## Prior work
 

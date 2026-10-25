@@ -45,3 +45,19 @@ How Trust Meridian was built during HackMeridian (Lisbon, 25–26 October 2026):
 ### Problems met
 
 - The vault constructor trapped without an error code: the vault name is prefixed with "DeFindex-Vault-" and a long name broke it. A short name fixed it.
+
+## 4 · Live app
+
+- Deployed on Vercel (public URL in the README). The 3D world now drives real testnet transactions: a passkey wallet (OpenZeppelin smart account through smart-account-kit) signs, `/api/relay` pays every fee from a sponsor account, and each confirmation shows its stellar.expert link. Anything not on-chain is labelled "Simulated".
+- Onboarding: one Face ID creates the wallet, then the server gives 1,000 test USDC and sets up the family's two circles and the Lisbon group with its expenses. Each step retries on a busy network.
+- The family's instalments are pulled by one `collect` from capped allowances instead of five separate payments.
+- Claude runs for real: `/api/read-bill` reads a bill photo (the sample PNG or your own) and fills the Cover request; `/api/plain` writes the one-sentence summary of a combined payout.
+- Presenter mode walks the demo with a clicker; S switches the whole demo to simulation if the network fails. The QR in the Harbor opens the app on testnet.
+- The demo family refills its test USDC on the DEX before each onboarding, so many people can try the app in a row.
+
+### Problems met
+
+- Passkey signatures failed until each authorization entry carried its context rule ids; the kit's lookup goes through an indexer that does not know new testnet wallets, so the app binds the Default rule (id 0).
+- Each new wallet costs the demo family about 1,000 test USDC; without automatic refills the third visitor's onboarding failed.
+- Several bot transactions in parallel from the same sponsor account collided on sequence numbers: family approvals now run one after another.
+- The intro's last shot was framed too close: the poles of the meridian to trace were off screen. The camera distance is now computed from the field of view.
