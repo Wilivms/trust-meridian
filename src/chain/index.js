@@ -14,6 +14,7 @@ export const CFG = {
   settle: E.VITE_SETTLE_ID,
   claim: E.VITE_CLAIM_ID,
   usdc: E.VITE_USDC_ID,
+  reflector: E.VITE_REFLECTOR_FX || 'CCSSOHTBL3LEWUCBBEB5NJFC2OKFRC74OWEIJIZLRJBGAAU4VMU5NV4W',
   accountWasmHash: E.VITE_ACCOUNT_WASM_HASH,
   webauthnVerifier: E.VITE_WEBAUTHN_VERIFIER_ADDRESS,
   spendingLimitPolicy: E.VITE_SPENDING_LIMIT_POLICY_ADDRESS,
@@ -111,7 +112,7 @@ let lastTarget = 'circle';
 function decodeError(msg) {
   if (/balance is not sufficient|not within the allowed range|insufficient/i.test(String(msg))) return 'Not enough USDC in this wallet';
   const m = /Error\(Contract, #(\d+)\)/.exec(String(msg));
-  if (m) return ERRORS[lastTarget][+m[1]] || `Contract error #${m[1]}`;
+  if (m) return (ERRORS[lastTarget] || [])[+m[1]] || `Contract error #${m[1]}`;
   return String(msg).slice(0, 240);
 }
 

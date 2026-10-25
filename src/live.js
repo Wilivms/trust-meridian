@@ -22,6 +22,19 @@ const onboard = (step, extra = {}) => post('/api/onboard', { step, wallet: state
 let botAddr = null;
 async function bots() { if (!botAddr) botAddr = await post('/api/bot', { action: 'list' }); return botAddr; }
 const addrOf = async (i) => (i === 0 ? state.wallet : (await bots())[NAMES[i]]);
+bots().catch(() => {}); // the family's addresses, for payment links
+
+// Reflector fiat oracle (SEP-40): USD per unit, 14 decimals → units per USD
+async function rates() {
+  const { xdr } = await import('@stellar/stellar-sdk');
+  const other = (s) => xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Other'), xdr.ScVal.scvSymbol(s)]);
+  const out = {};
+  for (const [cur, sym] of [['EURC', 'EUR'], ['BRL', 'BRL']]) {
+    const p = await chain.view('reflector', 'lastprice', [other(sym)]);
+    if (p && p.price) out[cur] = 1 / (Number(p.price) / 1e14);
+  }
+  return out;
+}
 
 /** Creates the family's circles and group on testnet for this wallet (once). */
 async function setup(progress = () => {}) {
@@ -54,6 +67,8 @@ export const Live = {
   ready,
   wallet: () => state.wallet,
   explorer: chain.txUrl,
+  rates,
+  addrSync: (i) => (i === 0 ? state.wallet : botAddr ? botAddr[NAMES[i]] : null),
 
   async restore() {
     if (!chain.CFG.live) return null;

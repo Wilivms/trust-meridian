@@ -565,7 +565,7 @@ button.item:hover{transform:translateY(-2px)}
     <div class="chap" data-i="2">
       <div class="eyebrow">01 · Circle</div>
       <h2>Save <em>together.</em></h2>
-      <p>The rotating savings circle, without borders. Everyone pays in the same value in their own currency, at a rate proven on-chain by the Reflector oracle. Between rounds the pot earns yield (DeFindex vault → XOXNO Lending), and each round it goes to one member, in theirs.</p>
+      <p>The rotating savings circle, without borders. Everyone pays the same value in USDC, shown in their own currency at the Reflector oracle rate. Between rounds the pot earns yield (DeFindex vault → XOXNO Lending), and each round it goes to one member, in theirs.</p>
     </div>
     <div class="chap" data-i="3">
       <div class="eyebrow">02 · Settle</div>
@@ -575,13 +575,13 @@ button.item:hover{transform:translateY(-2px)}
     <div class="chap" data-i="4">
       <div class="eyebrow">Circle · Settle · Cover</div>
       <h2>Three ways <em>to move money home.</em></h2>
-      <p>Save together in a circle, settle shared costs in one move, and pay a relative's bills back home. Here, Léa in Paris covers Tobi's school fees in Lagos: escrow, conversion, and a local bank paid in naira.</p>
+      <p>Save together in a circle, settle shared costs in one move, and pay a relative's bills back home. Here, Léa in Paris covers Tobi's school fees in Lagos: one passkey signature, and the school is paid in seconds.</p>
     </div>
     <div class="chap" data-i="5">
       <div class="eyebrow">Trust Meridian</div>
       <h2>One meridian <em>connecting everyone.</em></h2>
       <p>Sign in with a passkey: no seed phrase, no gas. Three gestures, one network, a few seconds and a fraction of a cent. Trace the Greenwich meridian to dive in.</p>
-      <div class="chips"><span>Passkeys</span><span>No gas</span><span>Reflector</span><span>Soroswap</span><span>Trustless Work</span><span>Anchors</span><span>DeFindex</span><span>XOXNO</span></div>
+      <div class="chips"><span>Passkeys</span><span>No gas</span><span>OpenZeppelin</span><span>DeFindex</span><span>XOXNO</span><span>Reflector</span><span>Claude</span></div>
     </div>
   </div>
   <nav class="dots" id="dots" aria-label="Chapters"></nav>
@@ -625,7 +625,7 @@ const DEC = { XLM: 2, EURC: 2, GYEN: 0, AUDD: 2, NGNC: 0, BRL: 2, USDC: 2 };
 const num = (v, c) => new Intl.NumberFormat('en-US', { minimumFractionDigits: DEC[c], maximumFractionDigits: DEC[c] }).format(v);
 const fmt = (v, c) => num(v, c) + ' ' + c;
 const FAM = [
-  { name: 'You',  city: 'Nova Lumen',   cur: 'XLM',  sym: '✦', color: '#9b8cff', mon: 'crystal',  lon: -28,   lat: -46 },
+  { name: 'You',  city: 'Nova Lumen',   cur: 'USDC', sym: '✦', color: '#9b8cff', mon: 'crystal',  lon: -28,   lat: -46 },
   { name: 'Léa',  city: 'Paris',        cur: 'EURC', sym: '€', color: '#5b9dff', mon: 'eiffel',   lon: 2.3,   lat: 48.9 },
   { name: 'Hugo', city: 'Tokyo',        cur: 'GYEN', sym: '¥', color: '#ff6b6b', mon: 'fuji',     lon: 139.7, lat: 35.7 },
   { name: 'Inès', city: 'Sydney',       cur: 'AUDD', sym: 'A$', color: '#2fd1b8', mon: 'opera',   lon: 151.2, lat: -33.9 },
@@ -1049,7 +1049,7 @@ const FEAT_ISLES = [
   { id: 'join', name: 'Try it', sub: 'scan the QR', color: '#ffd23f' },
   { id: 'keys', name: 'Keys', sub: 'the wallet', color: '#ffd23f' },
   { id: 'rates', name: 'Rates', sub: 'fair FX', color: '#2fd1b8' },
-  { id: 'rails', name: 'Rails', sub: 'to the bank', color: '#5b9dff' },
+  { id: 'rails', name: 'Bills', sub: 'pay home', color: '#5b9dff' },
   { id: 'welcome', name: 'Welcome', sub: 'bring them in', color: '#ff8a65' },
   { id: 'treasury', name: 'Treasury', sub: 'the pot', color: '#5ee0a0' },
   { id: 'ledger', name: 'Live Ledger', sub: 'proof', color: '#9b8cff' },
@@ -1880,36 +1880,34 @@ function nightFX(dt) {
 /* ---------- on-chain confirmations: every action waits for its ledger before the world moves ---------- */
 let ledgerNo = 61234560 + Math.floor(Math.random() * 9000);
 async function onChain(what, kind, label, real) {
-  const L = window.TMLive, live = !!(L && L.ready()) && !(typeof Presenter !== 'undefined' && Presenter.sim);
+  const L = window.TMLive;
+  if (!real) throw new Error('not on-chain');
+  if (!(L && L.ready())) { needWallet(); throw new Error('Create your passkey wallet first'); }
   const box = $('#txs'), el = document.createElement('div'); el.className = 'tx';
-  el.innerHTML = `<i class="spin" aria-hidden="true"></i><span><b>${live && real ? 'Sign & submit' : 'Submitting'}</b> · ${esc(label || kind)}</span>`;
+  el.innerHTML = `<i class="spin" aria-hidden="true"></i><span><b>Sign & submit</b> · ${esc(label || kind)}</span>`;
   box.prepend(el); requestAnimationFrame(() => el.classList.add('in'));
   while (box.children.length > 3) box.lastChild.remove();
-  if (live && real) {
-    let r;
-    try { r = await real(L); } catch (e) {
-      (window.TM_FAILS = window.TM_FAILS || []).push(`${label || kind}: ${String(e && e.message || e).slice(0, 160)}`);
-      el.classList.add('ok'); el.innerHTML = `<i class="noc" aria-hidden="true"></i><span><b>Not sent</b> · ${esc(String(e && e.message || e).slice(0, 90))}</span>`;
-      setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 6000);
-      throw e;
-    }
-    const h = (r && r.hash) || hex();
-    if (r && r.ledger) ledgerNo = r.ledger; else ledgerNo += 1;
-    logTx(what, kind, Date.now(), r && r.hash);
-    el.classList.add('ok');
-    el.innerHTML = `<i class="okc" aria-hidden="true"></i><span><b>Confirmed on testnet</b> · ledger #${ledgerNo.toLocaleString('en-US')}</span><em>${short(h)}</em>${r && r.hash ? `<a class="xl" href="${L.explorer(r.hash)}" target="_blank" rel="noopener">stellar.expert ↗</a>` : ''}`;
-    setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 5200);
-    return h;
+  let r;
+  try { r = await real(L); } catch (e) {
+    (window.TM_FAILS = window.TM_FAILS || []).push(`${label || kind}: ${String(e && e.message || e).slice(0, 160)}`);
+    el.classList.add('ok'); el.innerHTML = `<i class="noc" aria-hidden="true"></i><span><b>Not sent</b> · ${esc(String(e && e.message || e).slice(0, 90))}</span>`;
+    setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 6000);
+    throw e;
   }
-  await wait(RM ? 0.1 : rand(0.55, 0.9));
-  ledgerNo += 1 + Math.floor(Math.random() * 2);
-  const h = logTx(what, kind);
+  const h = (r && r.hash) || '';
+  if (r && r.ledger) ledgerNo = r.ledger; else ledgerNo += 1;
+  logTx(what, kind, Date.now(), h || undefined);
   el.classList.add('ok');
-  el.innerHTML = live
-    ? `<i class="okc" aria-hidden="true"></i><span><b>Simulated</b> · not on-chain in this demo</span>`
-    : `<i class="okc" aria-hidden="true"></i><span><b>Confirmed</b> · ledger #${ledgerNo.toLocaleString('en-US')}</span><em>${short(h)}</em><a class="xl" href="#" data-xl="1">stellar.expert ↗</a>`;
-  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 4200);
+  el.innerHTML = `<i class="okc" aria-hidden="true"></i><span><b>Confirmed on testnet</b> · ledger #${ledgerNo.toLocaleString('en-US')}</span>${h ? `<em>${short(h)}</em><a class="xl" href="${L.explorer(h)}" target="_blank" rel="noopener">stellar.expert ↗</a>` : ''}`;
+  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 5200);
   return h;
+}
+// no wallet yet: every action is a real testnet transaction, so the wallet comes first
+function needWallet() {
+  const L = window.TMLive;
+  if (L && L.wallet()) { announce('Almost ready', 'Your family is being set up on testnet, one moment', 2600); return; }
+  announce('Create your wallet first', 'One Face ID, then every action is a real testnet transaction', 2800);
+  openWallet();
 }
 
 /* ---------- glow halos: soft additive light around the things that shine ---------- */
@@ -2145,11 +2143,7 @@ const ALL = [0, 1, 2, 3, 4, 5];
 const circles = [
   { id: 'c1', name: 'Lopes Family', members: ALL.slice(), amount: 100, freq: 'monthly', round: 2, paid: [], status: 'active' },
 ];
-const publicCircles = [
-  { id: 'pc1', name: 'Lisbon diaspora', members: [1, 4, 5], amount: 50, freq: 'monthly', requested: false },
-  { id: 'pc2', name: 'Erasmus Paris–Tokyo', members: [1, 2], amount: 30, freq: 'weekly', requested: false },
-  { id: 'pc3', name: 'Pacific cousins', members: [2, 3], amount: 80, freq: 'monthly', requested: false },
-];
+const publicCircles = [];
 let curCircle = 'c1';
 const circ = () => circles.find((c) => c.id === curCircle);
 
@@ -2203,7 +2197,10 @@ async function contribute(i, shared) {
   const c = circ(); if (c.paid[i]) return;
   c.paid[i] = true; render();
   const f = FAM[i], amt = fmt(c.amount * FX[f.cur], f.cur);
-  await onChain(`${f.name} paid ${amt} into ${c.name} at the Reflector rate`, 'circle · pay', `${f.name} · ${amt} → pot`, shared ? () => shared : (L) => L.circlePay(c.id, i));
+  try { await onChainPay(); } catch (e) { c.paid[i] = false; render(); throw e; }
+  async function onChainPay() {
+  await onChain(`${f.name} paid ${amt} into ${c.name} ${rateNote(f.cur)}`, 'circle · pay', `${f.name} · ${amt} → pot`, shared ? () => shared : (L) => L.circlePay(c.id, i));
+  }
   await walk(f.char, f.out);
   await coinArc(f.char.position.clone().setY(PL + 1.6), ORB, 2.2, 0.8);
   pulse(CP.clone().setY(PL)); sparkle(ORB, 0xffe08a, 14, 0.6, 0.5, 2.2);
@@ -2212,7 +2209,7 @@ async function contribute(i, shared) {
   render();
 }
 async function othersPay() {
-  const c = circ(), L = window.TMLive, live = L && L.ready() && !Presenter.sim;
+  const c = circ(), L = window.TMLive, live = L && L.ready();
   // live: one `collect` pulls every family instalment from their capped allowances
   const shared = live ? L.collect(c.id) : null; if (shared) shared.catch(() => {});
   await Promise.all(c.members.map((i, k) => (i === 0 || c.paid[i] ? null : wait(k * 0.35).then(() => contribute(i, shared)))));
@@ -2236,7 +2233,7 @@ async function payout() {
   CONF.burst(b.home.clone().setY(G + 3), [b.color, '#ffd23f', '#ffffff', '#ff8a65'], 90, 11);
   potTo(0, total);
   announce(fmt(total * FX[b.cur], b.cur), `sent to ${b.name}, in ${b.city}`, 2600);
-  postcard({ kind: 'Circle · payout', stamp: b.sym, route: `${esc(c.name)} → <em>${b.city}</em>`, lines: [`<b>${fmt(total * FX[b.cur], b.cur)}</b> to ${b.name}`, `pot ${num(total, 'USDC')} USDC · 2 signatures ✓`, `+${num(total * 0.042 / 12, 'USDC')} USDC earned on XOXNO`], saved: addSaved(total), hash: h, share: `The ${c.name} pot reached ${b.name} in ${b.city}` });
+  postcard({ kind: 'Circle · payout', stamp: b.sym, route: `${esc(c.name)} → <em>${b.city}</em>`, lines: [`<b>${fmt(total * FX[b.cur], b.cur)}</b> to ${b.name}`, `pot ${num(total, 'USDC')} USDC · 2 signatures ✓`], saved: addSaved(total), hash: h, share: `The ${c.name} pot reached ${b.name} in ${b.city}` });
   await Promise.all(c.members.map((i, k) => wait(k * 0.1).then(() => walk(FAM[i].char, [...FAM[i].out].reverse()))));
   c.round++; c.paid = [];
 }
@@ -2276,7 +2273,7 @@ function renderCircleDetail() {
       <h2>Round ${c.round % c.members.length + 1} <em>of ${c.members.length}</em></h2>
       <p class="lede">Everyone crosses their bridge with the equivalent of ${c.amount}&nbsp;USDC, at the Reflector rate. This round, the pot goes to ${b.name}, in ${b.cur}.</p></div>
     <div><div class="pot"><b id="potNum">${num(c.shown || 0, 'USDC')}</b><span>/ ${num(total, 'USDC')} USDC</span></div><div class="bar"><i id="potBar" style="width:${(c.pot || 0) / total * 100}%"></i></div>
-      <div class="facts"><span class="chip">Reflector rate · ${rateAge()}s ago</span><span class="chip">vault · 2-of-${c.members.length} multisig</span><span class="chip ok">DeFindex → XOXNO · 4.2% APY · +${num((c.pot || 0) * 0.042 / 12, 'USDC')}</span><span class="chip">passport · ${STAMPS.length} stamps</span></div></div>
+      <div class="facts">${REFLECTED.size ? `<span class="chip">Reflector · ${[...REFLECTED].join(", ")} live</span>` : ""}<span class="chip">payout · 2 members sign</span><span class="chip ok">idle pot · DeFindex → XOXNO</span></div></div>
     <div class="rows">${rows}</div>
     <p class="note">Late payment: 48 hours of grace, then the member's deposit covers the share. A second miss adds a 2% penalty, or the group votes to move their turn.</p>
     <div class="actions">
@@ -2429,9 +2426,9 @@ function renderSettleAdd() {
    COVER: help requests
    ========================================================= */
 const STEPS = [
-  ['Escrow', 'Trustless Work holds the funds until the bill is confirmed'],
-  ['Conversion', 'Soroswap swap, exact amount received, at the Reflector rate'],
-  ['Bank payout', "A local anchor (SEP-24) pays the payee's bank account"],
+  ['Sign', 'One passkey signature, fees sponsored'],
+  ['Sent', 'USDC goes straight to the payee on Stellar'],
+  ['Arrived', 'Confirmed on the ledger in about five seconds'],
   ['Paid', 'A postcard receipt goes to the whole family'],
 ];
 async function sail(i, j) {
@@ -2447,19 +2444,17 @@ async function sail(i, j) {
   boatSailing = false; boatAt = j;
 }
 async function payReq() {
+  K.from = 0; // you pay, with your passkey
   const r = req(), pf = FAM[K.from], tf = FAM[r.city], usd = r.amt / FX[tf.cur];
   K.step = 0; render();
   if (boatAt !== K.from) dockBoat(K.from);
-  const liveNow = !!(window.TMLive && window.TMLive.ready() && !Presenter.sim && K.from === 0);
-  // on testnet the bill is paid in USDC to the payee's address; the Trustless Work escrow is the next step
-  await onChain(liveNow ? `${pf.name} paid “${r.title}” in USDC to the payee` : `${pf.name} funded the escrow for “${r.title}”`, liveNow ? 'USDC transfer' : 'Trustless Work escrow', liveNow ? `Bill · ${num(usd, 'USDC')} USDC` : `Escrow · ${fmt(usd * FX[pf.cur], pf.cur)}`, K.from === 0 ? (L) => L.payBill(usd, r.city) : null);
+  await onChain(`${pf.name} paid “${r.title}” to ${r.payee} (${num(usd, 'USDC')} USDC)`, 'USDC transfer', `Bill · ${num(usd, 'USDC')} USDC`, (L) => L.payBill(usd, r.city));
   pulse(pf.dock, 0xffd23f); sparkle(pf.dock.clone().setY(2), 0xffe08a, 16, 0.8, 0.5);
   await wait(0.6);
   K.step = 1; render();
-  await onChain(`${fmt(usd * FX[pf.cur], pf.cur)} converted to ${fmt(r.amt, tf.cur)} via Soroswap`, 'Soroswap swap', `Soroswap · ${pf.cur} → ${tf.cur}`);
   await sail(K.from, r.city);
   K.step = 2; render();
-  const h = await onChain(`${tf.cur} paid out to ${r.payee} by the local anchor`, 'SEP-24 withdrawal', `Anchor · ${fmt(r.amt, tf.cur)} to the bank`);
+  const h = LEDGER[0] ? LEDGER[0].h : '';
   pulse(tf.dock, 0xbfe6f5);
   await coinArc(tf.dock.clone().setY(1.4), tf.coverHub, 4, 1.1);
   await wait(0.3);
@@ -2469,7 +2464,7 @@ async function payReq() {
   firework(tf.coverHub, [tf.color, '#ffd23f', '#ffffff'], 16); wait(0.4).then(() => firework(tf.coverHub.clone().add(V3(-3, 0, 2)), ['#ffd23f', tf.color, '#5ee0a0'], 18));
   CONF.burst(tf.coverHub.clone().setY(G + 3), [tf.color, '#ffd23f', '#ffffff', '#5ee0a0'], 80, 10);
   announce('Bill paid', `${fmt(r.amt, tf.cur)} to ${r.payee}`);
-  postcard({ kind: 'Cover · bill paid', stamp: tf.sym, route: `${pf.city} → <em>${tf.city}</em>`, lines: [`sent <b>${fmt(usd * FX[pf.cur], pf.cur)}</b>`, `received <b>${fmt(r.amt, tf.cur)}</b>`, `by ${esc(r.payee)}, through a local anchor`], saved: addSaved(usd), hash: h, share: `${r.for}'s ${r.reason.toLowerCase()} bill is paid` });
+  postcard({ kind: 'Cover · bill paid', stamp: tf.sym, route: `${pf.city} → <em>${tf.city}</em>`, lines: [`sent <b>${fmt(usd * FX[pf.cur], pf.cur)}</b>`, `received <b>${fmt(r.amt, tf.cur)}</b>`, `to ${esc(r.payee)}, in USDC on Stellar`], saved: addSaved(usd), hash: h, share: `${r.for}'s ${r.reason.toLowerCase()} bill is paid` });
   await wait(1.2);
   K.step = 4; r.status = 'paid'; r.paidBy = K.from;
 }
@@ -2541,7 +2536,7 @@ function foldPanel(min) {
 $('#fold').addEventListener('click', () => foldPanel(true));
 $('#mini').addEventListener('click', () => foldPanel(false));
 function go(fn) { panel.classList.add('swap'); setTimeout(() => { fn(); render(); panel.scrollTop = 0; panel.classList.remove('swap'); enterPanel(); }, 200); }
-const run = async (fn) => { busy = true; render(); try { await fn(); } finally { busy = false; render(); } };
+const run = async (fn) => { if (!(window.TMLive && window.TMLive.ready())) { needWallet(); return; } busy = true; render(); try { await fn(); } catch (e) { console.warn(e); } finally { busy = false; render(); } };
 panel.addEventListener('click', (e) => {
   const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
   const a = b.dataset.act, id = b.dataset.id;
@@ -2616,7 +2611,7 @@ panel.addEventListener('submit', (e) => {
     go(() => { curReq = r.id; ui.cover = 'detail'; K.step = -1; if (K.from === city) K.from = city === 1 ? 0 : 1; coverFocus = city; if (!boatSailing) dockBoat(K.from); });
     pulse(FAM[city].coverHub, 0xff8a65);
     announce('Request posted', 'The whole family can see it in the Bay');
-    onChain(`Help request posted for ${who} in ${FAM[city].city}${SCAN.done ? ' · bill fingerprint attached' : ''}`, 'contract call', `Request · ${fmt(amt, FAM[city].cur)}`); SCAN.done = false;
+    saveRequest(r, SCAN.fingerprint); SCAN.done = false; SCAN.fingerprint = null;
   }
 });
 
@@ -2825,9 +2820,14 @@ const hex = () => { const a = new Uint8Array(32); try { crypto.getRandomValues(a
 const short = (h) => h.slice(0, 4) + '…' + h.slice(-4);
 function logTx(what, kind, t = Date.now(), real) { const h = real || hex(); LEDGER.unshift({ what, kind, h, t, real: !!real }); if (LEDGER.length > 40) LEDGER.pop(); if (OV.dropBlock) OV.dropBlock(); return h; }
 const since = (t) => { const s = Math.max(1, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'; };
-[['Hugo paid 14,840 GYEN into the Lopes Family pot', 'Soroswap swap', 3600], ['Lisbon weekend: expense added by Inès', 'contract call', 2400], ['Studio rent paid to the landlord in Tokyo', 'anchor withdrawal', 1500], ['XOXNO via DeFindex: pot interest accrued', 'contract call', 600]]
-  .forEach(([w, k, s]) => logTx(w, k, Date.now() - s * 1000));
 const rateAge = () => 3 + Math.floor((Date.now() / 1000) % 27);
+// rates read from the Reflector fiat oracle on testnet (it publishes EUR and BRL among our currencies)
+const REFLECTED = new Set();
+const rateNote = (cur) => (REFLECTED.has(cur) ? ' at the Reflector rate' : '');
+async function loadReflector() {
+  const L = window.TMLive; if (!L || !L.rates) return;
+  try { const r = await L.rates(); for (const [cur, perUsd] of Object.entries(r)) { if (FX[cur] && perUsd > 0) { FX[cur] = perUsd; REFLECTED.add(cur); } } if (REFLECTED.size) render(); } catch (e) { console.warn('Reflector', e); }
+}
 
 /* ---------- postcards: a receipt for every payment, ready to share ---------- */
 function postcard(o) {
@@ -2878,18 +2878,12 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape' && sheet.classList.c
 const FP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8v2"/><path d="M20 13v-2a8 8 0 0 0-3-6.2"/><path d="M8 20c1-2 1.5-4.5 1.5-7a2.5 2.5 0 0 1 5 0c0 1.5-.1 3-.4 4.5"/><path d="M12 13c0 3-.6 5.6-2 8"/><path d="M17 15.5c-.2 1.8-.7 3.4-1.4 4.8"/><path d="M6.6 16.5A11 11 0 0 0 7 13a5 5 0 0 1 9-3"/></svg>';
 const allowance = { limit: 50, used: 18 };
 function walletHTML() {
+  const L = window.TMLive, ready = L && L.ready();
   return `<button class="sheet-x" data-sh="close" aria-label="Close">×</button>
-    <div><div class="eyebrow"><b>Your wallet</b> · smart account</div><h3>You, <em>no seed phrase</em></h3></div>
-    ${liveBlock()}<div class="passkey ok"><div class="ring">${FP}</div><small class="note">Signed in with a passkey (Face ID / Touch ID). The key never leaves this phone.</small></div>
-    <div class="kv"><span>Account</span><b>CBX7…Q2LM</b><span>Network fees</span><b>sponsored · 0 XLM paid</b><span>Pay fees in</span><b>USDC (fee abstraction)</b><span>Balance</span><b>412.50 USDC</b></div>
-    <div class="boxed"><div class="h"><b>Family allowance</b><span class="chip ok">enforced by the wallet</span></div>
-      <small>Tobi in Lagos can spend up to <b id="alw">${allowance.limit}</b> USDC a week from your account · <span id="alwUsed">${allowance.used}</span> used this week</small>
-      <input class="range" id="alwR" type="range" min="10" max="200" step="10" value="${allowance.limit}" aria-label="Weekly limit for Tobi">
-      <div class="bar"><i id="alwBar" style="width:${Math.min(100, allowance.used / allowance.limit * 100)}%"></i></div><div class="actions"><button class="btn ghost sm" data-sh="alw-demo">Demo: Tobi spends</button></div></div>
-    ${passportHTML()}<div class="boxed"><div class="h"><b>Recovery</b><span class="chip">2 of 3 guardians</span></div>
-      <small>Lost your phone? Two of these relatives can restore your access.</small>
-      <div class="guard">${[1, 4, 3].map((i) => `<span class="chip"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${FAM[i].color};margin-right:6px"></i>${FAM[i].name} · ${FAM[i].city}</span>`).join('')}</div><div class="actions"><button class="btn ghost sm" data-sh="rec-demo">Demo: I lost my phone</button></div></div>
-    <p class="note">OpenZeppelin smart account on Stellar, transactions relayed by OpenZeppelin Relayer. Prototype values.</p>`;
+    <div><div class="eyebrow"><b>Your wallet</b> · smart account</div><h3>${ready ? 'You, <em>live on testnet</em>' : 'One Face ID, <em>no seed phrase</em>'}</h3></div>
+    ${liveBlock()}
+    <div class="kv"><span>Signs with</span><b>a passkey on this device</b><span>Network fees</span><b>sponsored · 0 XLM needed</b><span>Seed phrase</span><b>none</b></div>
+    <p class="note">OpenZeppelin smart account on Stellar testnet. Every action in the world is a real transaction, with its stellar.expert link.</p>`;
 }
 /* ---------- live mode: a real passkey wallet on Stellar testnet ---------- */
 function liveBlock() {
@@ -2922,19 +2916,32 @@ async function goLive(kind, name) {
 function openWallet() {
   openSheet(walletHTML(), () => {
     liveBalance();
-    $('#alwR').addEventListener('input', (e) => { allowance.limit = +e.target.value; $('#alw').textContent = allowance.limit; $('#alwBar').style.width = Math.min(100, allowance.used / allowance.limit * 100) + '%'; });
+    if ($('#alwR')) $('#alwR').addEventListener('input', (e) => { allowance.limit = +e.target.value; $('#alw').textContent = allowance.limit; $('#alwBar').style.width = Math.min(100, allowance.used / allowance.limit * 100) + '%'; });
   });
 }
 $('#walletBtn').addEventListener('click', openWallet);
 
 /* SEP-7: every request is a link or a QR any Stellar wallet can pay */
+// Cover requests are kept in Supabase (the money stays on-chain); the server writes, everyone reads
+async function saveRequest(r, fingerprint) {
+  const L = window.TMLive, f = FAM[r.city];
+  try {
+    const res = await fetch('/api/request', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({
+      by_wallet: (L && L.wallet()) || 'guest', for_name: r.for, city: f.city, kind: r.reason, title: r.title, payee: r.payee,
+      amount: r.amt, currency: f.cur, usdc: +(r.amt / FX[f.cur]).toFixed(2), message: r.msg || null, bill_hash: fingerprint || null }) });
+    const j = await res.json(); if (!res.ok) throw new Error(j.error || 'not saved');
+    r.dbId = j.id; announce('Request saved', `#${j.id} · the whole family can see it`, 2200);
+  } catch (e) { console.warn(e); }
+}
+const USDC_ISSUER = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 function shareHTML(r) {
-  const f = FAM[r.city], uri = `web+stellar:pay?destination=GDEMO${r.id.toUpperCase()}TRUSTMERIDIAN&amount=${r.amt}&asset_code=${f.cur}&memo=${encodeURIComponent(r.title.slice(0, 28))}`;
+  const f = FAM[r.city], L = window.TMLive, dest = L && L.addrSync ? L.addrSync(r.city) : null, usd = (r.amt / FX[f.cur]).toFixed(2);
+  const uri = `web+stellar:pay?destination=${dest || ''}&amount=${usd}&asset_code=USDC&asset_issuer=${USDC_ISSUER}&memo=${encodeURIComponent(r.title.slice(0, 28))}&network_passphrase=${encodeURIComponent('Test SDF Network ; September 2015')}`;
   return { uri, html: `<button class="sheet-x" data-sh="close" aria-label="Close">×</button>
     <div><div class="eyebrow"><b>Share the request</b> · SEP-7</div><h3>${esc(r.title)}</h3><p class="lede">Anyone can pay it from any Stellar wallet, even outside the family.</p></div>
     <div class="qr"><canvas id="qrShare" width="440" height="440"></canvas><small>${esc(uri)}</small></div>
     <div class="actions"><button class="btn" data-sh="copy">Copy the link</button></div>
-    <p class="note">Demo link: the destination is a placeholder on testnet.</p>` };
+    <p class="note">A SEP-7 payment link on Stellar testnet: ${num(+usd, 'USDC')} USDC to the payee's account.</p>` };
 }
 
 /* ---------- the guests: the public joins live from the QR, 15 berths, pseudo of 14 characters at most ---------- */
@@ -2980,7 +2987,6 @@ function addGuest(name, city, kind) {
   if (k < 0) return null;
   const g = { name, city, kind, color: GUEST_COLORS[k], berth: k };
   guests.push(g);
-  logTx(`${name} joined from ${CITIES[city].name} and opened a ${kind}`, 'account created');
   if (liveIslands) guestArrive(g);
   return g;
 }
@@ -3029,28 +3035,27 @@ sheet.addEventListener('click', (e) => {
 const FEATURES = {
   keys: { name: 'Keys', em: 'the wallet, without the jargon', items: [
     ['Passkey wallets', 'Sign up with Face ID or a fingerprint. The key never leaves the phone, and there is no seed phrase to lose.', ['OpenZeppelin smart accounts', 'passkeys (secp256r1)'], 'wallet'],
-    ['No gas, ever', 'Nobody needs to hold XLM. Our relayer sponsors the network fees, or they are paid in USDC.', ['OpenZeppelin Relayer', 'fee abstraction'], 'wallet'],
-    ['Family allowance', 'Give a relative a weekly budget that the wallet itself enforces.', ['smart account spending-limit policy'], 'wallet'],
-    ['Social recovery', 'Lost your phone? Two relatives you chose can restore your access.', ['smart account guardians'], 'wallet'],
+    ['No gas, ever', 'Nobody needs to hold XLM: our relay pays every network fee and only accepts calls to our contracts.', ['sponsored fees', 'fee bump'], 'wallet'],
   ] },
   rates: { name: 'Rates', em: 'fair money across currencies', items: [
-    ['Proven exchange rates', 'Every share is computed on-chain at the Reflector oracle rate, so nobody has to trust anybody\'s maths.', ['Reflector oracle (SEP-40)'], 'circle'],
-    ['Exact amounts on arrival', 'Conversions run on Soroswap with an exact output, so the recipient gets exactly the amount due, in their own currency.', ['Soroswap (exact output)', 'Reflector price guard'], 'cover'],
+    ['Live exchange rates', 'Amounts move in USDC; euros and reais are shown at the rate the Reflector oracle publishes on Stellar.', ['Reflector oracle (SEP-40)'], 'circle'],
     ['Settle in one transaction', 'All the transfers that square a group up go in a single atomic transaction: everyone is settled, or nobody is.', ['one Soroban transaction', '50% approval, capped allowances'], 'settle'],
   ] },
-  rails: { name: 'Rails', em: 'from the chain to the bank', items: [
-    ['Escrow, then a bank payout', 'A Cover payment waits in escrow until the bill is confirmed, then a local anchor pays the bank account in naira, reais or yen.', ['Trustless Work escrow', 'anchors SEP-24 / SEP-31'], 'cover'],
+  rails: { name: 'Bills', em: 'pay home in one tap', items: [
+    ['Claude reads the bill', 'Snap a bill: Claude fills in the payee, amount, due date and reference. The photo is not stored, only its fingerprint.', ['Claude (vision)', 'SHA-256 fingerprint'], 'cover'],
+    ['Paid straight to the payee', 'One passkey signature sends USDC to the payee on Stellar, confirmed in about five seconds.', ['USDC on Stellar'], 'cover'],
   ] },
   welcome: { name: 'Welcome', em: 'bring your people in', items: [
-    ['Send to someone without a wallet', 'The money waits in a claim contract. Every link you create is kept in My links: copy it anytime and share it however you like, or take the money back (small fee) as long as nobody has claimed it. Tobi opens it, creates a passkey and claims, without paying a thing.', ['claim contract', 'passkey onboarding, fees sponsored'], 'cover'],
+    ['Send to someone without a wallet', 'The money waits in a claim contract. The link holds a one-time key; Tobi creates a passkey and claims without paying a thing. You can take it back while nobody has claimed it.', ['claim contract', 'ed25519 one-time key'], 'cover'],
     ['Payment links and QR codes', 'Every help request is a link or a QR code any Stellar wallet can pay.', ['SEP-7 payment URIs'], 'cover'],
   ] },
   treasury: { name: 'Treasury', em: 'the family pot', items: [
-    ['A shared pot with rules', 'The Circle pot is a shared account: a payout needs two approvals, and a late payment follows the rules everyone signed.', ['Soroban contract', 'smart account threshold policy'], 'circle'],
-    ['Yield between rounds', 'While it waits, the pot sits in a DeFindex vault whose strategy supplies it to XOXNO Lending, which lowers everyone\'s cost.', ['DeFindex vault', 'XOXNO Lending'], 'circle'],
+    ['A shared pot with rules', 'The Circle pot lives in a contract: instalments are pulled from capped allowances, and a payout needs two different members.', ['Circle contract', 'collect · payout'], 'circle'],
+    ['Yield between rounds', 'While it waits, the pot sits in a DeFindex vault whose strategy, written by us, supplies it to XOXNO Lending.', ['DeFindex vault', 'XOXNO Lending'], 'circle'],
   ] },
   ledger: { name: 'Live Ledger', em: 'proof, not promises', items: [
-    ['A world driven by the chain', 'Coins fly and boats sail when the transaction is confirmed, each with its link to the explorer. The savings counter shows what banks would have charged.', ['Stellar RPC events', 'Horizon', 'stellar.expert'], null],
+    ['A world driven by the chain', 'Coins fly and boats sail only once the transaction is confirmed on testnet, each with its link to the explorer.', ['Stellar testnet', 'stellar.expert'], null],
+    ['Requests the family shares', 'Help requests are kept in a database everyone can read; the money only moves on-chain.', ['Supabase'], 'cover'],
   ] },
 };
 const SEE = { wallet: 'Open the wallet', circle: 'See it in Circle', settle: 'See it in Settle', cover: 'See it in Cover' };
@@ -3064,7 +3069,7 @@ function renderOverview() {
       <div class="sec"><div class="sec-h"><span>Features</span><span>${featCount()}</span></div>
         ${FEAT_ISLES.filter((F) => F.id !== 'join').map((F) => `<button class="item" data-act="o-open" data-id="${F.id}"><span><b><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${F.color};margin-right:8px"></i>${F.name}</b><small>${FEATURES[F.id].em}</small></span><span class="side"><span class="chip">${FEATURES[F.id].items.length}</span></span></button>`).join('')}</div>
       <div class="sec"><div class="sec-h"><span>People</span></div>
-        <button class="item" data-act="o-open" data-id="team"><span><b>The Team</b><small>De Vinci Blockchain</small></span><span class="side"><span class="chip">1</span></span></button>
+        <button class="item" data-act="o-open" data-id="team"><span><b>The Team</b><small>De Vinci Blockchain</small></span><span class="side"><span class="chip">2</span></span></button>
         <button class="item" data-act="o-open" data-id="roadmap"><span><b>What's next</b><small>The roadmap after HackMeridian</small></span><span class="side"><span class="chip">5</span></span></button>
         <button class="item" data-act="o-present"><span><b>Presenter mode</b><small>A clicker runs the demo step by step · key P</small></span><span class="side"><span class="chip">P</span></span></button>
         <button class="item" data-act="o-open" data-id="join"><span><b>Try it on your phone</b><small>Scan the QR · Stellar testnet</small></span><span class="side"><span class="chip ok">QR</span></span></button></div>`;
@@ -3072,6 +3077,7 @@ function renderOverview() {
   if (v === 'team') {
     return `${back}<div><div class="eyebrow"><b>The Harbor</b> · The Team</div><h2>Who <em>built it</em></h2></div>
       <div class="team"><img class="av" src="${IMG.avatar}" alt="Wiliams Lopes"><div><b>Wiliams Lopes</b><a href="https://www.linkedin.com/in/wiliams-lopes-3382921ba/" target="_blank" rel="noopener noreferrer">LinkedIn ↗</a></div></div>
+      <div class="team"><img class="av" src="/meyssa.jpg" alt="Meyssa Helal"><div><b>Meyssa Helal</b><small style="color:var(--soft)">De Vinci Blockchain</small></div></div>
       <a class="dvb" href="https://dvb.xyz" target="_blank" rel="noopener noreferrer"><img class="cube" src="${IMG.cube}" alt=""><span><b>Representing De Vinci Blockchain</b><br><small style="color:var(--soft)">dvb.xyz ↗</small></span></a>
       <img class="dvb-logo" src="${IMG.dvb}" alt="De Vinci Blockchain">
       <p class="note">HackMeridian · Lisbon · October 2026.</p>`;
@@ -3079,11 +3085,11 @@ function renderOverview() {
   if (v === 'roadmap') {
     return `${back}<div><div class="eyebrow"><b>The Harbor</b> · What's next</div><h2>The road <em>after Lisbon</em></h2></div>
       <ol class="road">
-        <li><span><b>Mainnet, with local anchors</b><small>Partner anchors in West Africa and Latin America, for cash-out to banks and mobile money.</small></span></li>
-        <li><span><b>Confidential amounts</b><small>OpenZeppelin Confidential Tokens hide how much each relative sends, with an auditor key for compliance.</small></span></li>
-        <li><span><b>An agent that pays the bills</b><small>Within the family allowance, an agent pays recurring bills over x402.</small></span></li>
-        <li><span><b>A reliability score you can prove</b><small>Twelve rounds paid on time, proven in zero knowledge without revealing amounts: a door to micro-credit.</small></span></li>
-        <li><span><b>Top up from any chain</b><small>Relatives on other networks send USDC to the family through CCTP.</small></span></li>
+        <li><span><b>Mainnet, with local anchors</b><small>Cash in and out to banks and mobile money through SEP-24 anchors, signed in with SEP-45 for passkey wallets.</small></span></li>
+        <li><span><b>Escrow for bills</b><small>Trustless Work holds a Cover payment until the payee confirms the bill.</small></span></li>
+        <li><span><b>A family allowance, and an agent that pays the bills</b><small>A spending-limit policy on the wallet gives Tobi a weekly budget; the same rule caps an agent paying recurring bills.</small></span></li>
+        <li><span><b>Recovery by your family</b><small>Two relatives you chose restore a lost passkey, after a safety delay.</small></span></li>
+        <li><span><b>A reliability score you can prove</b><small>Circle already records every on-time payment; a zero-knowledge proof would open micro-credit without revealing amounts.</small></span></li>
       </ol>`;
   }
   if (v === 'join') {
@@ -3184,8 +3190,7 @@ const depositPct = () => Math.max(20, 100 - 12 * STAMPS.length);
 const depositFor = (amount) => Math.round(amount * depositPct() / 100);
 function earnStamp(c) {
   STAMPS.push({ sym: '✦', at: `${c.name} · round ${c.round % c.members.length + 1}`, fresh: true });
-  logTx(`Trust stamp minted for You (${c.name}, paid on time)`, 'contract call');
-  setTimeout(() => announce('Stamp earned', `Paid on time · ${STAMPS.length} stamps · new-circle deposit ${depositPct()}%`, 2600), 900);
+  setTimeout(() => announce('Paid on time', `${STAMPS.length} on-time ${STAMPS.length > 1 ? 'payments' : 'payment'}, recorded by the Circle contract`, 2600), 900);
 }
 function passportHTML() {
   return `<div class="boxed passport"><div class="h"><b>Trust passport</b><span class="chip ok">${STAMPS.length} stamps</span></div>
@@ -3208,7 +3213,7 @@ function comboHTML() {
   const c = circ(), P = comboParts(c), x = '<button class="sheet-x" data-sh="close" aria-label="Close">×</button>';
   const steps = [`The pot, <b>${num(P.total, 'USDC')} USDC</b>, is paid out to you · 2 signatures`];
   if (COMBO.settle && P.debts.length) steps.push(`${P.debts.map((t) => `<b>${num(t.usd, 'USDC')} USDC</b> to ${FAM[t.to].name}`).join(', ')}: your ${esc(P.g.name)} debts are cleared`);
-  if (COMBO.cover && P.r) steps.push(`<b>${num(P.billUsd, 'USDC')} USDC</b> converted via Soroswap and paid to ${esc(P.r.payee)} in ${FAM[P.r.city].city}, through the local anchor (${fmt(P.r.amt, FAM[P.r.city].cur)})`);
+  if (COMBO.cover && P.r) steps.push(`<b>${num(P.billUsd, 'USDC')} USDC</b> paid to ${esc(P.r.payee)} in ${FAM[P.r.city].city} for ${esc(P.r.for)}`);
   steps.push(`<b>${num(P.keep, 'USDC')} USDC</b> stays in your wallet`);
   return `${x}<div><div class="eyebrow"><b>Your payout</b> · ${esc(c.name)}</div><h3>Use it <em>right away</em></h3>
       <p class="lede">Pick what this payout should cover. Everything below runs in one transaction.</p></div>
@@ -3452,11 +3457,10 @@ async function blendSupply() {
   for (let k = 0; k < 5; k++) { FXP.emit(ORB.x, ORB.y + 1, ORB.z, rand(-1, 1), rand(3, 5), rand(-1, 1), '#5ee0a0', 0.3, 1.4, 4, 0.4); await wait(0.12); }
   await wait(0.8);
   sparkle(ORB, 0xffd23f, 18, 0.8, 0.5, 2.5); c.yieldShown = true;
-  announce('The pot earns while it waits', `+${num(amt * 0.042 / 12, 'USDC')} USDC by the payout, lowering everyone's cost`, 2800);
-  logTx(`${c.name}: XOXNO interest accrued via DeFindex (+${num(amt * 0.042 / 12, 'USDC')} USDC)`, 'contract call');
+  announce('The pot earns while it waits', 'Supplied to XOXNO through the DeFindex vault until the payout', 2800);
 }
 const Presenter = (() => {
-  let on = false, i = 0, running = false, sim = false;
+  let on = false, i = 0, running = false;
   const hud = document.createElement('div'); hud.className = 'pres'; hud.setAttribute('aria-live', 'polite'); document.body.appendChild(hud);
   const typeInto = async (sel, text) => { const el = $(sel); if (!el) return; el.focus(); el.value = ''; for (const ch of String(text)) { el.value += ch; await wait(0.05); } el.blur(); };
   const setSel = (sel, v) => { const el = $(sel); if (el) { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); } };
@@ -3479,8 +3483,8 @@ const Presenter = (() => {
       clean(); await goTo('circle'); chapter('Your wallet', 'No seed phrase, no gas, no jargon'); await wait(1.2);
       const L = window.TMLive;
       // live: the wallet was created before the talk (setup takes ~2 min); show the real account
-      if (L && L.ready() && !sim) { openWallet(); await wait(0.2); const b = $('#liveBox'); if (b) b.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' }); }
-      else await run(onboardDemo);
+      if (L && L.ready()) { openWallet(); await wait(0.2); const b = $('#liveBox'); if (b) b.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' }); }
+      else { needWallet(); }
     }),
     // ---- 2 · Circle
     S('Circle', 'Arrive at the Square', async () => {
@@ -3530,17 +3534,19 @@ const Presenter = (() => {
     S('Cover', 'My links: copy or claim back', async () => {
       clean(); await goTo('cover'); await view(() => { ui.cover = 'list'; K.step = -1; });
       const el = $('#myLinks'); if (el) el.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' });
-      await wait(2.4); const k = LINKS.find((x) => x.to === 'Kemi' && x.status === 'waiting') || LINKS.find((x) => x.status === 'waiting' && x.to !== 'Tobi');
+      await wait(2.4); const k = LINKS.find((x) => x.status === 'waiting' && x.chainId);
       if (k) await run(() => claimBack(k.id));
       const el2 = $('#myLinks'); if (el2) el2.scrollIntoView({ block: 'center' });
     }),
-    S('Cover', 'Tobi’s weekly allowance', async () => { clean(); await goTo('cover'); await run(allowanceDemo); }),
     // ---- 5 · the three together, and the safety net
-    S('Safety', 'I lost my phone', async () => { clean(); await goTo('circle'); chapter('And if you lose your phone?', 'Your family brings you back'); await wait(1.8); await run(recoveryDemo); }),
     S('Together', 'Your turn to receive a Circle payout', async () => {
       clean();
       const g = groups[0];
-      if (!transfers(g).some((t) => t.from === 0)) { g.exp.unshift({ who: 1, what: 'Pastéis de nata for everyone', amt: 60, cur: 'EURC', parts: g.members.slice() }); logTx(`${g.name}: expense added by Léa (60.00 EURC)`, 'contract call'); }
+      if (!transfers(g).some((t) => t.from === 0)) {
+        const e = { who: 1, what: 'Pastéis de nata for everyone', amt: 60, cur: 'EURC', parts: g.members.slice() };
+        await onChain(`${g.name}: expense added by Léa (60.00 EURC)`, 'settle · add_expense', 'Expense · 60.00 EURC', (L) => L.addExpense(1, e.amt / FX.EURC, e.parts, e.what));
+        g.exp.unshift(e);
+      }
       const c = circles.find((x) => x.id === 'c2');
       if (!allPaid(c) || ben(c) !== FAM[0]) { c.round = 0; c.members.forEach((k) => (c.paid[k] = true)); c.pot = c.shown = c.amount * c.members.length; }
       COMBO.settle = true; COMBO.cover = true; COMBO.reqId = 'r2'; { const r2 = requests.find((x) => x.id === 'r2'); if (r2) { r2.status = 'open'; r2.claim = false; } }
@@ -3563,7 +3569,7 @@ const Presenter = (() => {
     hud.innerHTML = `<span class="pdot ${running ? 'busy' : ''}"></span><b>${ch}</b>${!intro && !done ? `<span class="pn">${k + 1} / ${inCh.length}</span>` : ''}
       <span class="pt">${running ? label : (done ? '' : 'Next: ') + label}</span>
       <span class="pdots">${CHS.map((c) => { const idx = STEPS.findIndex((s) => s.ch === c), last = STEPS.length - 1 - [...STEPS].reverse().findIndex((s) => s.ch === c); return `<i class="${i > last ? 'd' : i > idx ? 'h' : ''}" title="${c}"></i>`; }).join('')}</span>
-      <span class="pk">${sim ? '<em>simulation</em>' : 'testnet'} · → next · ← back · S fallback · Esc exit</span>`;
+      <span class="pk">testnet · → next · ← back · Esc exit</span>`;
   }
   async function next() {
     if (!on || running) return;
@@ -3575,21 +3581,20 @@ const Presenter = (() => {
   }
   // ← replays nothing: it only steps the pointer back, so a skipped beat can be shown again
   function back() { if (!on || running || i === 0) return; i--; paint(); }
-  function start() { on = true; i = 0; paint(); announce('Presenter mode', 'One click, one beat · → next, ← back', 2200); }
+  function start() { on = true; i = 0; paint(); const L = window.TMLive; announce('Presenter mode', L && L.ready() ? 'Live on testnet · → next, ← back' : 'Create your passkey wallet first (wallet button)', 2600); }
   function stop() { on = false; camFocus = null; ui.featHi = null; paint(); }
   addEventListener('keydown', (e) => {
     if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
     if (e.key === 'p' || e.key === 'P') { on ? stop() : start(); return; }
     if (!on) return;
     if (e.key === 'Escape') { stop(); return; }
-    if (e.key === 's' || e.key === 'S') { sim = !sim; paint(); announce(sim ? 'Simulation fallback' : 'Back on testnet', sim ? 'Same demo, no network needed' : 'Transactions go to Stellar testnet'); return; }
     if (mode === 'intro') { if (['ArrowRight', 'Enter'].includes(e.key) || (['ArrowDown', 'PageDown', ' '].includes(e.key) && Intro.st.chap >= document.querySelectorAll('.chap').length - 1)) { e.preventDefault(); next(); } return; }
     if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); next(); }
     if (['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key)) { e.preventDefault(); back(); }
   });
   hud.addEventListener('click', () => next());
   if (location.hash === '#present') setTimeout(start, 600);
-  return { start, stop, next, get on() { return on; }, get sim() { return sim; }, paint };
+  return { start, stop, next, get on() { return on; }, paint };
 })();
 
 function demoFX(dt) { boatsFX(dt); }
@@ -3670,18 +3675,14 @@ async function recoveryDemo() {
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-sh]'); if (!b) return;
   if (b.dataset.sh === 'live-new' || b.dataset.sh === 'live-connect') { const n = cleanName(($('#lvN') || {}).value || ''); b.disabled = true; goLive(b.dataset.sh === 'live-new' ? 'new' : 'connect', n).then(() => { sheetIn.innerHTML = walletHTML(); liveBalance(); }).catch(() => { b.disabled = false; }); }
-  if (b.dataset.sh === 'onb-go' && window.TMLive && window.TMLive.enabled() && !window.TMLive.wallet()) { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML().replace('<small class="note">', '<small class="note" id="pkTxt">'); goLive('new', ONB.name).then((w) => { logTx(`Smart account created for ${ONB.name} (passkey signer), fees sponsored`, 'smart account · deploy'); ONB.step = 2; sheetIn.innerHTML = onboardHTML().replace('CBX7…Q2LM', short(w)); }).catch(() => {}); return; }
-  if (b.dataset.sh === 'onb-go') { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML(); setTimeout(async () => { await onChain(`Smart account created for ${ONB.name} (passkey signer), fees sponsored`, 'smart account · deploy', 'Wallet created · passkey'); ONB.step = 2; sheetIn.innerHTML = onboardHTML(); }, 1400); }
+  if (b.dataset.sh === 'onb-go' && window.TMLive && !window.TMLive.wallet()) { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML().replace('<small class="note">', '<small class="note" id="pkTxt">'); goLive('new', ONB.name).then((w) => { ONB.step = 2; sheetIn.innerHTML = onboardHTML().replace('CBX7…Q2LM', short(w)); }).catch(() => {}); return; }
   if (b.dataset.sh === 'alw-demo') { closeSheet(); run(allowanceDemo); }
   if (b.dataset.sh === 'rec-demo') { closeSheet(); run(recoveryDemo); }
 });
 /* ---------- claim links: every link you create is kept in "My links"; copy it anytime, take the money back while nobody has claimed it ---------- */
 const RECLAIM_FEE = 0.10;
-const LINKS = [
-  { id: 'k7f2', to: 'Kemi', city: 4, amt: 46000, t: Date.now() - 3 * 864e5, status: 'waiting' },
-  { id: 'q91c', to: 'Tia Rosa', city: 5, amt: 150, t: Date.now() - 864e5, status: 'claimed' },
-];
-const linkUrl = (k) => `trustmeridian.app/claim#${k.id}…`;
+const LINKS = [];
+const linkUrl = (k) => (k.url ? k.url.slice(0, 34) + '…' : 'not on-chain');
 const ago = (t) => { const h = Math.round((Date.now() - t) / 36e5); return h < 1 ? 'just now' : h < 24 ? `${h} h ago` : `${Math.round(h / 24)} d ago`; };
 function linksHTML() {
   const chip = { waiting: '<span class="chip open">Waiting</span>', claimed: '<span class="chip ok">Claimed</span>', returned: '<span class="chip">Returned to you</span>' };
@@ -3721,7 +3722,6 @@ panel.addEventListener('click', (e) => {
 /* ---------- the QR lets the public into the world itself: a passkey wallet, then free exploration.
    Their island still appears in the harbor on the big screen, and the live circle is open to join. ---------- */
 const ME = { name: null };
-publicCircles.unshift({ id: 'live', name: 'Hack the Meridian', members: [0], amount: 1, freq: 'weekly', requested: false, live: true });
 function enterAsGuest() {
   const g = addGuest(join.name, join.city, 'explorer'); join.full = !g;
   ME.name = join.name; const s = $('#walletBtn span'); if (s) s.textContent = `${join.name} · passkey`;
@@ -3733,12 +3733,11 @@ sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-sh="e
 
 FEATURES.treasury.items.push(
   ['One payout, three uses', 'When your turn comes, the pot can pay back your Settle debts and a family bill in the same transaction. You see every step before you confirm.', ['one atomic Soroban transaction'], 'circle'],
-  ['Trust stamps', 'Every round paid on time adds a stamp to your passport. Stamps lower the deposit you need to join a new circle.', ['non-transferable token', 'Soroban contract'], 'wallet']);
-FEATURES.welcome.items.push(['The room becomes a Circle', 'At the end of the pitch, the guests who joined from the QR each pay 1 USDC and one of them, drawn on-chain, receives the pot.', ['passkeys on every phone', 'Soroban PRNG draw'], null]);
+  ['Advance on your turn', 'Need it before your turn? Borrow up to half of your security deposit on XOXNO; the pot repays it when your turn comes.', ['XOXNO borrow', 'Circle contract'], 'circle']);
 
 /* ---------- v14: Claude reads the bill (Cover) and sums up the combined payout ---------- */
 const SAMPLE_BILL = { holder: 'Lúcia F. Souza', city: 5, reason: 'Electricity', amt: 186.4, title: 'Electricity, October bill', payee: 'Lumen Energia (sample utility)', due: '5 Nov 2026', ref: '0042-7781-3', kwh: 212 };
-const SCAN = { busy: false, done: false };
+const SCAN = { busy: false, done: false, fingerprint: null };
 function billHTML(b, scanning) {
   return `<div class="bill ${scanning ? 'scan' : ''}" aria-label="Sample electricity bill">
     <div class="bill-h"><b>Lumen Energia</b><small>Conta de energia · SAMPLE</small></div>
@@ -3773,6 +3772,7 @@ async function scanBill(fast, file) {
     const due = f.due && !isNaN(new Date(f.due)) ? new Date(f.due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : b.due;
     b = { ...b, holder: f.customer || b.holder, amt: Number(f.amount) || b.amt, title: f.title || b.title, payee: f.payee || b.payee, ref: f.reference || b.ref, due,
       reason: kinds.includes(f.kind) ? f.kind : b.reason, city: file && cityByCur > 0 ? cityByCur : b.city };
+    SCAN.fingerprint = got.fingerprint;
     const st0 = $('#scanState'); if (st0) st0.textContent = `read in ${got.secs.toFixed(1)}s`;
   } else if (file) { const st0 = $('#scanState'); if (st0) st0.textContent = 'could not read it, try the sample'; SCAN.busy = false; return; }
   const put = async (sel, v, label, shown) => {
@@ -4081,7 +4081,7 @@ const Intro = (() => {
   const routeTube = tube(new THREE.CatmullRomCurve3(ROUTE.map(([lon, lat]) => ll(lon, lat, PR + 0.03)), false, 'centripetal'), 0xffd23f, 0.014, 240);
   const ship = makeMeridian(); ship.scale.setScalar(0.12); ship.visible = false; pScene.add(ship);
   const wakes = balls(22, 0xffffff, 0.025);
-  const MILES = [['escrow · Trustless Work', 0.06], ['EURC → NGNC via Soroswap', 0.45], ['local anchor · SEP-24', 0.86], ['school fees paid ✓', 1]].map(([t, u]) => ({ u, tag: mkTag(t, 'gold') }));
+  const MILES = [['Léa signs · passkey', 0.06], ['fees sponsored', 0.45], ['USDC to the school', 0.86], ['school fees paid ✓', 1]].map(([t, u]) => ({ u, tag: mkTag(t, 'gold') }));
   const VOY = 11;
 
   /* ---------- chapter 5: Greenwich ---------- */
@@ -4409,7 +4409,8 @@ OV.ready = true;
 if (location.hash === '#join') JOIN_ON_ENTER = true;
 requestAnimationFrame(frame);
 // hooks for the live layer (src/main.js) and for tests
-Object.assign(window, { Presenter, Intro, liveMark, openWallet, LEDGER });
+Object.assign(window, { Presenter, Intro, liveMark, openWallet, LEDGER, loadReflector });
+loadReflector();
 if (window.TMLive && window.TMLive.ready()) liveMark();
 };
 requestAnimationFrame(() => setTimeout(TM_MAIN, 40));
