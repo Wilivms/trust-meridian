@@ -160,6 +160,7 @@ export const Live = {
   coverRelease: (contractId, payeeIdx) => post('/api/escrow', { action: 'release', contractId, payee: payeeIdx }),
   // ---- The bill agent (Claude): a delegated key on the wallet, capped by a weekly spending limit
   agentRule: () => (state.ids && state.ids.agentRule != null ? state.ids.agentRule : null),
+  agentWeekly: () => (state.ids && state.ids.agentWeekly) || null,
   async agentAllow(weeklyUsd) {
     const { agent } = await fetch('/api/agent').then((r) => r.json());
     const r = await chain.addAgentRule(agent, weeklyUsd);

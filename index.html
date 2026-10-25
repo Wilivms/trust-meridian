@@ -2920,10 +2920,58 @@ function liveBlock() {
       <small>Deposit USDC through the Stellar test anchor (${esc(L.anchorHome)}): sign in with your passkey (SEP-45), then follow the anchor's page.</small>
       <div class="two"><div class="field"><label for="depA">Amount (USDC, 1 to 10)</label><input id="depA" type="number" min="1" max="10" step="1" value="5"></div>
       <div class="actions" style="align-self:end"><button class="btn sm" data-sh="deposit">Deposit</button></div></div>
-      <small class="note" id="depTxt"></small></div>` : ''}
+      <small class="note" id="depTxt"></small></div>${agentBox()}` : ''}
     <small class="note" id="lvTxt">${L.ready() ? 'Circles, the Lisbon group and claim links run on testnet with this wallet.' : ''}</small></div>`;
 }
 function liveMark() { const L = window.TMLive, s = $('#walletBtn span'); if (L && L.ready() && s) s.textContent = `${ME.name || 'You'} · live`; }
+// ---------- the bill agent: Claude pays recurring bills with its own key, within a weekly budget the wallet enforces ----------
+const AGENT_BILLS = [
+  { id: 'b1', title: 'Water bill, November', for: 'Vó Lúcia', payee: 5, usdc: 25, due: 2 },
+  { id: 'b2', title: 'School canteen, this week', for: 'Mateo', payee: 4, usdc: 15, due: 1 },
+  { id: 'b3', title: 'Internet, November', for: 'Inès', payee: 3, usdc: 20, due: 10 },
+];
+const AGENT = { spent: 0, paid: [] };
+function agentBox() {
+  const L = window.TMLive, rule = L && L.agentRule();
+  if (rule == null) return `<div class="boxed" id="agentBox"><div class="h"><b>Bill agent</b><span class="chip">Claude · spending limit</span></div>
+    <small>Give an agent its own key on your wallet, only for USDC payments, capped every week. Claude pays the family's recurring bills; the wallet refuses anything over the cap.</small>
+    <div class="two"><div class="field"><label for="agW">Weekly budget (USDC)</label><input id="agW" type="number" min="10" max="200" step="5" value="50"></div>
+    <div class="actions" style="align-self:end"><button class="btn sm" data-sh="agent-allow">Allow the agent</button></div></div><small class="note" id="agTxt"></small></div>`;
+  const wk = (window.TMLive.agentWeekly && window.TMLive.agentWeekly()) || 50;
+  return `<div class="boxed" id="agentBox"><div class="h"><b>Bill agent</b><span class="chip ok">rule #${rule} · ${wk} USDC / week</span></div>
+    <small>${AGENT_BILLS.map((b) => `${esc(b.title)} · ${num(b.usdc, 'USDC')} USDC · ${AGENT.paid.includes(b.id) ? 'paid' : `due in ${b.due} d`}`).join('<br>')}</small>
+    <div class="actions"><button class="btn sm" data-sh="agent-run">Run the agent</button><button class="btn ghost sm" data-sh="agent-test">Try 60 USDC</button></div><small class="note" id="agTxt">${AGENT.spent ? `${num(AGENT.spent, 'USDC')} of ${wk} USDC used this week` : ''}</small></div>`;
+}
+async function agentAllow(btn) {
+  const L = window.TMLive, t = (m) => { const e = $('#agTxt'); if (e) e.textContent = m; };
+  const wk = Math.max(10, Math.min(200, Math.round(+(($('#agW') || {}).value) || 50)));
+  btn.disabled = true; t('Confirm with your passkey: a new rule on your wallet…');
+  try { await onChain(`Bill agent allowed: USDC payments up to ${wk} USDC a week`, 'smart account · context rule + spending limit', `Agent rule · ${wk} USDC / week`, (L2) => L2.agentAllow(wk)); sheetIn.innerHTML = walletHTML(); liveBalance(); liveScore(); }
+  catch (e) { t(String(e.message || e).slice(0, 140)); btn.disabled = false; }
+}
+async function agentRun() {
+  const L = window.TMLive, t = (m) => { const e = $('#agTxt'); if (e) e.textContent = m; };
+  const wk = (L.agentWeekly && L.agentWeekly()) || 50, bills = AGENT_BILLS.filter((b) => !AGENT.paid.includes(b.id));
+  t('Claude is looking at the bills…');
+  const r = await L.agentRun(bills, wk - AGENT.spent).catch((e) => ({ error: e.message }));
+  if (r.error) { t(r.error); return; }
+  announce('Bill agent', r.note || 'Done', 3200);
+  for (const x of r.results || []) {
+    const b = AGENT_BILLS.find((y) => y.id === x.id);
+    if (x.ok) { AGENT.paid.push(b.id); AGENT.spent += b.usdc; logTx(`Bill agent paid “${b.title}” for ${b.for} (${num(b.usdc, 'USDC')} USDC)`, 'agent · delegated signer', Date.now(), x.hash); }
+    else refusedTx(b.title, `${b.title}: over the weekly limit`);
+  }
+  if ($('#agentBox')) $('#agentBox').outerHTML = agentBox();
+  const e2 = $('#agTxt'); if (e2) e2.textContent = `${r.note || ''} ${num(AGENT.spent, 'USDC')} of ${wk} USDC used.`;
+  liveBalance();
+}
+async function agentTest() {
+  const L = window.TMLive, t = (m) => { const e = $('#agTxt'); if (e) e.textContent = m; };
+  t('The agent tries to send 60 USDC…');
+  const r = await L.agentPay(2, 60).catch((e) => ({ ok: false, error: e.message }));
+  if (r.ok) { logTx('Bill agent sent 60 USDC', 'agent · delegated signer', Date.now(), r.hash); t('Sent (the budget allowed it).'); }
+  else { refusedTx('60 USDC', 'agent over its weekly limit'); announce('Refused by the wallet', 'The spending-limit policy stops the agent at its weekly budget', 3000); t('Refused on-chain by the spending-limit policy: the agent cannot go over its budget.'); }
+}
 async function liveScore() { const L = window.TMLive, b = $('#lvScore'); if (!b || !L || !L.ready()) return; try { const r = await L.score(); b.textContent = `${r.onTime} ${r.onTime === 1 ? 'payment' : 'payments'} · ${r.circles} circles`; } catch { b.textContent = '—'; } }
 async function anchorDeposit(btn) {
   const L = window.TMLive, t = (m) => { const e = $('#depTxt'); if (e) e.textContent = m; };
@@ -3597,6 +3645,14 @@ const Presenter = (() => {
       if (k) await run(() => claimBack(k.id));
       const el2 = $('#myLinks'); if (el2) el2.scrollIntoView({ block: 'center' });
     }),
+    // ---- the bill agent (Claude, with its own capped key)
+    S('Agent', 'The bill agent pays, within its budget', async () => {
+      clean(); await goTo('cover'); chapter('The bill agent', 'Claude pays recurring bills with its own key, capped by the wallet');
+      await wait(1.2); openWallet(); await wait(0.4); const bx = $('#agentBox'); if (bx) bx.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' });
+      if (window.TMLive.agentRule() == null) { const b = $('[data-sh="agent-allow"]'); if (b) await agentAllow(b); await wait(0.6); }
+      await agentRun();
+    }),
+    S('Agent', 'Over budget? The wallet says no', async () => { await agentTest(); }),
     // ---- 5 · the three together, and the safety net
     S('Together', 'Your turn to receive a Circle payout', async () => {
       clean();
@@ -3734,6 +3790,9 @@ async function recoveryDemo() {
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-sh]'); if (!b) return;
   if (b.dataset.sh === 'deposit') { anchorDeposit(b); return; }
+  if (b.dataset.sh === 'agent-allow') { agentAllow(b); return; }
+  if (b.dataset.sh === 'agent-run') { b.disabled = true; agentRun().finally(() => { b.disabled = false; }); return; }
+  if (b.dataset.sh === 'agent-test') { b.disabled = true; agentTest().finally(() => { b.disabled = false; }); return; }
   if (b.dataset.sh === 'live-new' || b.dataset.sh === 'live-connect') { const n = cleanName(($('#lvN') || {}).value || ''); b.disabled = true; goLive(b.dataset.sh === 'live-new' ? 'new' : 'connect', n).then(() => { sheetIn.innerHTML = walletHTML(); liveBalance(); }).catch(() => { b.disabled = false; }); }
   if (b.dataset.sh === 'onb-go' && window.TMLive && !window.TMLive.wallet()) { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML().replace('<small class="note">', '<small class="note" id="pkTxt">'); goLive('new', ONB.name).then((w) => { ONB.step = 2; sheetIn.innerHTML = onboardHTML().replace('CBX7…Q2LM', short(w)); }).catch(() => {}); return; }
   if (b.dataset.sh === 'alw-demo') { closeSheet(); run(allowanceDemo); }
