@@ -515,12 +515,16 @@ impl CircleContract {
         if amount <= 0 || deposit < 0 {
             return Err(Error::BadAmount);
         }
+        // Members rotate in the order given; the creator joins at the end if
+        // they did not list themselves.
         let mut list = Vec::new(&env);
-        list.push_back(creator.clone());
         for m in members.iter() {
             if !list.contains(&m) {
                 list.push_back(m);
             }
+        }
+        if !list.contains(&creator) {
+            list.push_back(creator.clone());
         }
         let max = if max_members == 0 || max_members > MAX_MEMBERS { MAX_MEMBERS } else { max_members };
         if list.len() > max {
@@ -555,7 +559,8 @@ impl CircleContract {
         }
         let id: u32 = env.storage().instance().get(&Key::NextId).unwrap_or(0);
         env.storage().instance().set(&Key::NextId, &(id + 1));
-        lock_deposit(&env, &mut c, 0, &creator);
+        let ci = c.members.first_index_of(&creator).unwrap();
+        lock_deposit(&env, &mut c, ci, &creator);
         save(&env, id, &c);
         CircleCreated { circle: id, creator, name, amount }.publish(&env);
         Ok(id)

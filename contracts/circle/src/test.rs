@@ -99,7 +99,7 @@ fn setup<'a>() -> T<'a> {
 }
 
 fn members(t: &T) -> Vec<Address> {
-    vec![&t.env, t.m[1].clone(), t.m[2].clone(), t.m[3].clone()]
+    vec![&t.env, t.m[0].clone(), t.m[1].clone(), t.m[2].clone(), t.m[3].clone()]
 }
 
 #[test]

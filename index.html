@@ -1879,16 +1879,34 @@ function nightFX(dt) {
 
 /* ---------- on-chain confirmations: every action waits for its ledger before the world moves ---------- */
 let ledgerNo = 61234560 + Math.floor(Math.random() * 9000);
-async function onChain(what, kind, label) {
+async function onChain(what, kind, label, real) {
+  const L = window.TMLive, live = !!(L && L.ready());
   const box = $('#txs'), el = document.createElement('div'); el.className = 'tx';
-  el.innerHTML = `<i class="spin" aria-hidden="true"></i><span><b>Submitting</b> · ${esc(label || kind)}</span>`;
+  el.innerHTML = `<i class="spin" aria-hidden="true"></i><span><b>${live && real ? 'Sign & submit' : 'Submitting'}</b> · ${esc(label || kind)}</span>`;
   box.prepend(el); requestAnimationFrame(() => el.classList.add('in'));
   while (box.children.length > 3) box.lastChild.remove();
+  if (live && real) {
+    let r;
+    try { r = await real(L); } catch (e) {
+      el.classList.add('ok'); el.innerHTML = `<i class="noc" aria-hidden="true"></i><span><b>Not sent</b> · ${esc(String(e && e.message || e).slice(0, 90))}</span>`;
+      setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 6000);
+      throw e;
+    }
+    const h = (r && r.hash) || hex();
+    if (r && r.ledger) ledgerNo = r.ledger; else ledgerNo += 1;
+    logTx(what, kind, Date.now(), r && r.hash);
+    el.classList.add('ok');
+    el.innerHTML = `<i class="okc" aria-hidden="true"></i><span><b>Confirmed on testnet</b> · ledger #${ledgerNo.toLocaleString('en-US')}</span><em>${short(h)}</em>${r && r.hash ? `<a class="xl" href="${L.explorer(r.hash)}" target="_blank" rel="noopener">stellar.expert ↗</a>` : ''}`;
+    setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 5200);
+    return h;
+  }
   await wait(RM ? 0.1 : rand(0.55, 0.9));
   ledgerNo += 1 + Math.floor(Math.random() * 2);
   const h = logTx(what, kind);
   el.classList.add('ok');
-  el.innerHTML = `<i class="okc" aria-hidden="true"></i><span><b>Confirmed</b> · ledger #${ledgerNo.toLocaleString('en-US')}</span><em>${short(h)}</em><a class="xl" href="#" data-xl="1">stellar.expert ↗</a>`;
+  el.innerHTML = live
+    ? `<i class="okc" aria-hidden="true"></i><span><b>Simulated</b> · not on-chain in this demo</span>`
+    : `<i class="okc" aria-hidden="true"></i><span><b>Confirmed</b> · ledger #${ledgerNo.toLocaleString('en-US')}</span><em>${short(h)}</em><a class="xl" href="#" data-xl="1">stellar.expert ↗</a>`;
   setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 4200);
   return h;
 }
@@ -2139,7 +2157,7 @@ const groups = [
     { who: 1, what: 'Hotel in Alfama, 4 nights', amt: 690, cur: 'EURC', parts: ALL.slice() },
     { who: 3, what: 'Villa in Sintra, 2 nights', amt: 640, cur: 'AUDD', parts: ALL.slice() },
     { who: 2, what: 'Dinner in Bairro Alto', amt: 31500, cur: 'GYEN', parts: ALL.slice() },
-    { who: 0, what: 'Boat trip on the Tagus', amt: 420, cur: 'XLM', parts: [0, 1, 2, 3] },
+    { who: 1, what: 'Boat trip on the Tagus', amt: 420, cur: 'XLM', parts: [0, 1, 2, 3] },
     { who: 4, what: 'Concert tickets', amt: 154000, cur: 'NGNC', parts: ALL.slice() },
     { who: 5, what: 'Groceries at the market', amt: 480, cur: 'BRL', parts: [0, 3, 4, 5] },
   ] },
@@ -2184,7 +2202,7 @@ async function contribute(i) {
   const c = circ(); if (c.paid[i]) return;
   c.paid[i] = true; render();
   const f = FAM[i], amt = fmt(c.amount * FX[f.cur], f.cur);
-  await onChain(`${f.name} paid ${amt} into ${c.name} at the Reflector rate`, 'Soroswap swap', `${f.name} · ${amt} → pot`);
+  await onChain(`${f.name} paid ${amt} into ${c.name} at the Reflector rate`, 'circle · pay', `${f.name} · ${amt} → pot`, (L) => L.circlePay(c.id, i));
   await walk(f.char, f.out);
   await coinArc(f.char.position.clone().setY(PL + 1.6), ORB, 2.2, 0.8);
   pulse(CP.clone().setY(PL)); sparkle(ORB, 0xffe08a, 14, 0.6, 0.5, 2.2);
@@ -2205,7 +2223,7 @@ async function payout() {
   announce('Two signatures', 'The pot vault is a multisig');
   BADGE.show(badgePos('circle', 0)); await wait(0.8);
   BADGE.show(badgePos('circle', co)); await wait(0.6);
-  const h = await onChain(`${c.name} pot paid out to ${b.name} (${fmt(total * FX[b.cur], b.cur)})`, 'multisig payout', `Pot → ${b.name} · 2/2 signatures`);
+  const h = await onChain(`${c.name} pot paid out to ${b.name} (${fmt(total * FX[b.cur], b.cur)})`, 'multisig payout', `Pot → ${b.name} · 2/2 signatures`, (L) => L.circlePayout(c.id, co));
   BADGE.clear();
   pulse(CP.clone().setY(PL)); sparkle(ORB, 0xffd23f, 24, 0.8, 0.6, 3);
   camFocus = { t: b.home.clone(), r: 40, pitch: 0.66, yaw: 0.25, until: clock + 4.2 };
@@ -2305,7 +2323,7 @@ function transfers(g) {
 async function settleAll() {
   const g = grp(), list = transfers(g); if (!list.length) return;
   const usd = list.reduce((s, t) => s + t.usd, 0);
-  const h = await onChain(`${g.name}: ${list.length} transfers settled in one transaction`, 'atomic transaction', `${list.length} transfers · 1 transaction`);
+  const h = await onChain(`${g.name}: ${list.length} transfers settled in one transaction`, 'atomic transaction', `${list.length} transfers · 1 transaction`, (L) => L.settle());
   camFocus = { t: SP.clone(), r: 78, pitch: 0.74, yaw: 0.95, until: clock + 4 };
   list.forEach((t) => pulse(FAM[t.from].settleHub));
   await Promise.all(list.map((t, j) => Promise.all([0, 1, 2, 3].map((k) => coinArc(FAM[t.from].settleHub, FAM[t.to].settleHub, 10, 1.4, j * 0.15 + k * 0.11)))));
@@ -2429,7 +2447,7 @@ async function payReq() {
   const r = req(), pf = FAM[K.from], tf = FAM[r.city], usd = r.amt / FX[tf.cur];
   K.step = 0; render();
   if (boatAt !== K.from) dockBoat(K.from);
-  await onChain(`${pf.name} funded the escrow for “${r.title}”`, 'Trustless Work escrow', `Escrow · ${fmt(usd * FX[pf.cur], pf.cur)}`);
+  await onChain(`${pf.name} funded the escrow for “${r.title}”`, 'Trustless Work escrow', `Escrow · ${fmt(usd * FX[pf.cur], pf.cur)}`, K.from === 0 ? (L) => L.payBill(usd, r.city) : null);
   pulse(pf.dock, 0xffd23f); sparkle(pf.dock.clone().setY(2), 0xffe08a, 16, 0.8, 0.5);
   await wait(0.6);
   K.step = 1; render();
@@ -2582,7 +2600,7 @@ panel.addEventListener('submit', (e) => {
     pulse(FAM[who].settleHub);
     parts.filter((p) => p !== who).forEach((p, k) => coinArc(FAM[p].settleHub, FAM[who].settleHub, 6, 1, k * 0.08));
     announce('Expense added', `${fmt(amt, cur)} paid by ${FAM[who].name}`);
-    onChain(`${grp().name}: expense added by ${FAM[who].name} (${fmt(amt, cur)})`, 'contract call', `Expense · ${fmt(amt, cur)}`);
+    onChain(`${grp().name}: expense added by ${FAM[who].name} (${fmt(amt, cur)})`, 'settle · add_expense', `Expense · ${fmt(amt, cur)}`, (L) => L.addExpense(who, amt / FX[cur], parts, what)).catch(() => {});
   }
   if (f.id === 'f-req') {
     const who = $('#rf').value.trim(), city = +$('#rc').value, amt = +$('#ra').value, title = $('#rt').value.trim(), payee = $('#rp').value.trim();
@@ -2800,7 +2818,7 @@ $('#saved').addEventListener('click', () => { if (mode !== 'intro') { setMode('o
 const LEDGER = [];
 const hex = () => { const a = new Uint8Array(32); try { crypto.getRandomValues(a); } catch (e) { for (let i = 0; i < 32; i++) a[i] = Math.random() * 256; } return [...a].map((b) => b.toString(16).padStart(2, '0')).join(''); };
 const short = (h) => h.slice(0, 4) + '…' + h.slice(-4);
-function logTx(what, kind, t = Date.now()) { const h = hex(); LEDGER.unshift({ what, kind, h, t }); if (LEDGER.length > 40) LEDGER.pop(); if (OV.dropBlock) OV.dropBlock(); return h; }
+function logTx(what, kind, t = Date.now(), real) { const h = real || hex(); LEDGER.unshift({ what, kind, h, t, real: !!real }); if (LEDGER.length > 40) LEDGER.pop(); if (OV.dropBlock) OV.dropBlock(); return h; }
 const since = (t) => { const s = Math.max(1, Math.round((Date.now() - t) / 1000)); return s < 60 ? s + 's' : s < 3600 ? Math.round(s / 60) + ' min' : Math.round(s / 3600) + ' h'; };
 [['Hugo paid 14,840 GYEN into the Lopes Family pot', 'Soroswap swap', 3600], ['Lisbon weekend: expense added by Inès', 'contract call', 2400], ['Studio rent paid to the landlord in Tokyo', 'anchor withdrawal', 1500], ['Blend: pot interest accrued', 'contract call', 600]]
   .forEach(([w, k, s]) => logTx(w, k, Date.now() - s * 1000));
@@ -3189,7 +3207,8 @@ async function comboPayout() {
   const useS = COMBO.settle && P.debts.length, useC = COMBO.cover && P.r;
   const n = 1 + (useS ? P.debts.length : 0) + (useC ? 1 : 0);
   BADGE.show(badgePos('circle', 0)); await wait(0.7); BADGE.show(badgePos('circle', c.members.find((i) => i !== 0))); await wait(0.5);
-  const h = await onChain(`${c.name}: payout to You, ${useS ? 'Settle debts cleared, ' : ''}${useC ? 'a Cover bill paid, ' : ''}in one transaction`, 'atomic transaction', `Payout + ${n - 1} payments · 1 transaction`);
+  const co = c.members.find((i) => i !== 0);
+  const h = await onChain(`${c.name}: payout to You, ${useS ? 'Settle debts cleared, ' : ''}${useC ? 'a Cover bill paid, ' : ''}in one transaction`, 'atomic transaction', `Payout + ${n - 1} payments · 1 transaction`, (L) => L.combo(c.id, co, useS ? P.debts : [], useC ? P.billUsd : 0, null));
   BADGE.clear();
   camFocus = { t: me.home.clone(), r: 44, pitch: 0.7, yaw: 0.3, until: clock + 4 };
   await Promise.all([0, 1, 2, 3, 4].map((k) => coinArc(ORB, me.circleHub, 6, 1.2, k * 0.1)));
@@ -3388,7 +3407,7 @@ function finaleBox() {
 async function blendSupply() {
   const c = circ(), amt = c.amount * c.members.length;
   pulse(CP.clone().setY(PL)); sparkle(ORB, 0x5ee0a0, 24, 1, 0.6, 3);
-  await onChain(`${c.name}: ${num(amt, 'USDC')} USDC supplied to a Blend pool until the payout`, 'Blend · supply', `Pot → Blend · 4.2% APY`);
+  await onChain(`${c.name}: ${num(amt, 'USDC')} USDC parked in a DeFindex vault, supplied to XOXNO until the payout`, 'DeFindex · XOXNO', `Pot → DeFindex vault → XOXNO`, (L) => L.park(c.id));
   for (let k = 0; k < 5; k++) { FXP.emit(ORB.x, ORB.y + 1, ORB.z, rand(-1, 1), rand(3, 5), rand(-1, 1), '#5ee0a0', 0.3, 1.4, 4, 0.4); await wait(0.12); }
   await wait(0.8);
   sparkle(ORB, 0xffd23f, 18, 0.8, 0.5, 2.5); c.yieldShown = true;
@@ -3626,19 +3645,20 @@ function linksHTML() {
 function renderCoverList() { return renderCoverList0() + linksHTML(); }
 async function claimLink() {
   const r = req(), f = FAM[r.city], p = FAM[K.from], usd = r.amt / FX[f.cur];
-  const h = await onChain(`${p.name} created a claim link for ${r.for} (${fmt(r.amt, f.cur)})`, 'claim contract · deposit', `Claim link · funds held by the claim contract`);
+  let made = null;
+  const h = await onChain(`${p.name} created a claim link for ${r.for} (${fmt(r.amt, f.cur)})`, 'claim contract · deposit', `Claim link · funds held by the claim contract`, K.from === 0 ? (L) => L.claimCreate(usd).then((x) => (made = x)) : null);
   pulse(p.dock, 0xffd23f);
   await coinArc(p.dock.clone().setY(1.4), f.coverHub, 9, 1.5);
   pulse(f.coverHub, 0xff8a65); sparkle(f.coverHub.clone().setY(G + 2), 0xffb08a, 26, 1, 0.55, 3);
   r.status = 'paid'; r.paidBy = K.from; r.claim = true; K.step = -1;
-  LINKS.forEach((k) => (k.hi = false)); LINKS.unshift({ id: hex().slice(0, 4), to: r.for, city: r.city, amt: r.amt, t: Date.now(), status: 'waiting', hi: true, reqId: r.id });
+  LINKS.forEach((k) => (k.hi = false)); LINKS.unshift({ id: hex().slice(0, 4), to: r.for, city: r.city, amt: r.amt, t: Date.now(), status: 'waiting', hi: true, reqId: r.id, chainId: made ? made.id : null, url: made ? made.url : null });
   postcard({ kind: 'Claim link · Welcome', stamp: f.sym, route: `${p.city} → <em>${esc(r.for)}</em>`, lines: [`<b>${fmt(r.amt, f.cur)}</b> ready to claim`, 'kept in My links · copy it anytime', 'claimed with a passkey, no fees'], saved: addSaved(usd), hash: h, share: `${r.for} can claim ${fmt(r.amt, f.cur)} on Trust Meridian` });
   announce('Claim link ready', `It is in My links: copy it and share it however you like`);
 }
 async function claimBack(id) {
   const k = LINKS.find((x) => x.id === id); if (!k || k.status !== 'waiting') return;
   const f = FAM[k.city], me = FAM[0], usd = k.amt / FX[f.cur];
-  await onChain(`Claim link to ${k.to} taken back by You (${num(usd - RECLAIM_FEE, 'USDC')} USDC returned, ${num(RECLAIM_FEE, 'USDC')} fee)`, 'claim contract · reclaim', `Claim back · ${fmt(k.amt, f.cur)} − ${num(RECLAIM_FEE, 'USDC')} USDC fee`);
+  await onChain(`Claim link to ${k.to} taken back by You (${num(usd - RECLAIM_FEE, 'USDC')} USDC returned, ${num(RECLAIM_FEE, 'USDC')} fee)`, 'claim contract · reclaim', `Claim back · ${fmt(k.amt, f.cur)} − ${num(RECLAIM_FEE, 'USDC')} USDC fee`, k.chainId != null ? (L) => L.claimBack(k.chainId) : null);
   if (mode === 'cover') { pulse(f.coverHub, 0xbfe6f5); await coinArc(f.coverHub.clone().setY(G + 1), me.dock.clone().setY(1.4), 9, 1.4); pulse(me.dock, 0x5ee0a0); }
   k.status = 'returned'; LINKS.forEach((x) => (x.hi = x === k));
   const r = k.reqId && requests.find((x) => x.id === k.reqId); if (r) { r.status = 'open'; r.claim = false; }

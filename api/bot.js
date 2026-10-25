@@ -34,12 +34,16 @@ export default async function handler(req, res) {
         const r = await relay({ func: b64(func), auth: auth.map(b64) });
         return json(res, 200, { ...r, result: s.result });
       }
+      case 'relay': {
+        const r = await relay({ func: body.func, auth: body.auth || [] });
+        return json(res, r.success ? 200 : 500, r);
+      }
       case 'cosign': {
         if (!who) return json(res, 400, { error: 'Unknown member' });
         const entries = body.auth.map((a) => xdr.SorobanAuthorizationEntry.fromXDR(a, 'base64'));
         const auth = await signEntries(entries, [who]);
         const r = await relay({ func: body.func, auth: auth.map(b64) });
-        return json(res, 200, r);
+        return json(res, r.success ? 200 : 500, r);
       }
       default:
         return json(res, 400, { error: 'Unknown action' });

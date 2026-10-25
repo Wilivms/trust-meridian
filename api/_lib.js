@@ -2,13 +2,11 @@
 import {
   Address, Keypair, Operation, TransactionBuilder, authorizeEntry, nativeToScVal, rpc, scValToNative, xdr, Account,
 } from '@stellar/stellar-sdk';
-import { ChannelsClient } from '@openzeppelin/relayer-plugin-channels';
 
 const env = process.env;
 export const CFG = {
   rpcUrl: env.RPC_URL || env.VITE_RPC_URL || 'https://soroban-testnet.stellar.org',
   passphrase: env.NETWORK_PASSPHRASE || 'Test SDF Network ; September 2015',
-  relayerBase: env.RELAYER_BASE_URL || 'https://channels.openzeppelin.com/testnet',
   circle: env.VITE_CIRCLE_ID,
   settle: env.VITE_SETTLE_ID,
   claim: env.VITE_CLAIM_ID,
@@ -24,21 +22,69 @@ export function bots() {
   return out;
 }
 
-let apiKey = env.OZ_CHANNELS_API_KEY || null;
-async function channels() {
-  if (!apiKey) {
-    const r = await fetch(`${CFG.relayerBase}/gen`);
-    const j = await r.json();
-    apiKey = j.apiKey || j.api_key || j.key || j.token;
-  }
-  return new ChannelsClient({ baseUrl: CFG.relayerBase, apiKey });
+/** Fee sponsors: funded testnet accounts that pay every fee (users never hold XLM). */
+function sponsors() {
+  const raw = env.SPONSOR_SECRETS ? JSON.parse(env.SPONSOR_SECRETS) : [];
+  return raw.map((s) => Keypair.fromSecret(s));
 }
 
-/** Submits { func, auth } through OpenZeppelin Relayer Channels (fees sponsored). */
+async function waitFor(hash) {
+  for (let i = 0; i < 60; i++) {
+    const g = await server.getTransaction(hash);
+    if (g.status === 'SUCCESS') return { ok: true, ledger: g.ledger, result: g.returnValue ? scValToNative(g.returnValue) : null };
+    if (g.status === 'FAILED') return { ok: false, ledger: g.ledger };
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return { ok: false, timeout: true };
+}
+
+/**
+ * Submits { func, auth } with a sponsor as the transaction source.
+ * Simulates with the given (signed) auth, adds a resource margin, and wraps
+ * the transaction in a fee bump when the testnet resource fee exceeds 32 bits.
+ */
 export async function relay(body) {
-  const c = await channels();
-  if (body.xdr) return c.submitTransaction({ xdr: body.xdr });
-  return c.submitSorobanTransaction({ func: body.func, auth: body.auth || [] });
+  if (body.xdr) {
+    const tx = TransactionBuilder.fromXDR(body.xdr, CFG.passphrase);
+    const s = await server.sendTransaction(tx);
+    if (s.status === 'ERROR') throw new Error('rejected');
+    const w = await waitFor(s.hash);
+    return { success: w.ok, hash: s.hash, status: w.ok ? 'SUCCESS' : 'FAILED', ledger: w.ledger };
+  }
+  const list = sponsors();
+  if (!list.length) throw new Error('No fee sponsor configured');
+  const kp = list[Math.floor(Math.random() * list.length)];
+  const func = typeof body.func === 'string' ? xdr.HostFunction.fromXDR(body.func, 'base64') : body.func;
+  const auth = (body.auth || []).map((a) => (typeof a === 'string' ? xdr.SorobanAuthorizationEntry.fromXDR(a, 'base64') : a));
+  const acct = await server.getAccount(kp.publicKey());
+  const draft = new TransactionBuilder(acct, { fee: '1000', networkPassphrase: CFG.passphrase })
+    .addOperation(Operation.invokeHostFunction({ func, auth })).setTimeout(120).build();
+  const sim = await server.simulateTransaction(draft);
+  if (rpc.Api.isSimulationError(sim)) throw new Error(sim.error.split('\n')[0]);
+  const finalAuth = auth.length ? auth : (sim.result ? sim.result.auth : []);
+  const r0 = sim.transactionData.build().resources();
+  const resFee = BigInt(sim.minResourceFee) * 120n / 100n;
+  const data = sim.transactionData
+    .setResources(Math.min(Math.ceil(r0.instructions() * 1.3), 600_000_000), r0.diskReadBytes(), Math.ceil(r0.writeBytes() * 1.1))
+    .setResourceFee(resFee)
+    .build();
+  const acct2 = await server.getAccount(kp.publicKey());
+  const op = Operation.invokeHostFunction({ func, auth: finalAuth });
+  let envelope;
+  if (resFee + 1000n < 4_000_000_000n) {
+    envelope = new TransactionBuilder(acct2, { fee: String(resFee + 1000n), networkPassphrase: CFG.passphrase, sorobanData: data }).addOperation(op).setTimeout(120).build();
+    envelope.sign(kp);
+  } else {
+    const plain = new TransactionBuilder(acct2, { fee: '1000', networkPassphrase: CFG.passphrase }).addOperation(op).setTimeout(120).build();
+    const e = plain.toEnvelope(); e.v1().tx().ext(new xdr.TransactionExt(1, data));
+    const inner = TransactionBuilder.fromXDR(e.toXDR('base64'), CFG.passphrase); inner.sign(kp);
+    envelope = TransactionBuilder.buildFeeBumpTransaction(kp, String(resFee + 10000n), inner, CFG.passphrase); envelope.sign(kp);
+  }
+  const s = await server.sendTransaction(envelope);
+  if (s.status === 'ERROR') throw new Error('Transaction rejected');
+  const w = await waitFor(s.hash);
+  if (!w.ok) return { success: false, hash: s.hash, status: 'FAILED', error: 'Transaction failed on-chain' };
+  return { success: true, hash: s.hash, status: 'SUCCESS', ledger: w.ledger, result: w.result };
 }
 
 export function invokeFn(contractId, method, args) {
@@ -83,6 +129,7 @@ export const sv = {
   addr: (a) => new Address(a).toScVal(),
   bytes: (hex) => xdr.ScVal.scvBytes(Buffer.from(hex, 'hex')),
   bool: (b) => nativeToScVal(!!b),
+  str: (x) => nativeToScVal(String(x), { type: 'string' }),
 };
 
 export function json(res, code, body) {

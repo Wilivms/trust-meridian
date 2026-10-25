@@ -121,14 +121,28 @@ export async function view(target, method, args = []) {
   return tx.result;
 }
 
-/** Calls a contract as the connected wallet: passkey signature, sponsored fees. */
-export async function call(target, method, args = []) {
+/**
+ * Calls a contract as the connected wallet. The passkey signs the wallet's
+ * authorization entries; the server adds any family member's signature
+ * (`cosign`) and submits with a fee sponsor, so the user never holds XLM.
+ */
+export async function call(target, method, args = [], { cosign } = {}) {
   lastTarget = target;
   const k = getKit();
   const tx = await assemble(CFG[target], method, args);
-  const res = await k.signAndSubmit(tx);
-  if (!res.success) throw new Error(res.error ? res.error.message : 'Transaction failed');
-  return { hash: res.hash, ledger: res.ledger, result: tx.result };
+  const op = tx.built.operations[0];
+  const mine = me();
+  const auth = [];
+  for (const entry of op.auth || []) {
+    const c = entry.credentials();
+    const isMine = c.switch().name === 'sorobanCredentialsAddress' && Address.fromScAddress(c.address().address()).toString() === mine;
+    auth.push((isMine ? await k.signAuthEntry(entry) : entry).toXDR('base64'));
+  }
+  const body = { func: op.func.toXDR('base64'), auth };
+  const r = await fetch('/api/bot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cosign ? { action: 'cosign', who: cosign, ...body } : { action: 'relay', ...body }) });
+  const j = await r.json();
+  if (!r.ok || !j.success) throw new Error(j.error || 'Transaction failed');
+  return { hash: j.hash, ledger: j.ledger, result: tx.result };
 }
 
 /** Asks the server to act for a family member (bot wallet) in the demo. */
@@ -164,13 +178,13 @@ export const circle = {
   pay: (id) => call('circle', 'pay', [sv.u32(id), sv.addr(me())]),
   park: (id) => call('circle', 'park', [sv.u32(id), sv.addr(me())]),
   advance: (id, amount) => call('circle', 'advance', [sv.u32(id), sv.addr(me()), sv.i128(toUnits(amount))]),
-  payout: (id, other) => call('circle', 'payout', [sv.u32(id), sv.addr(me()), sv.addr(other)]),
-  payoutCombo: (id, other, group, debts, billTo, billAmount) =>
+  payout: (id, other, otherName) => call('circle', 'payout', [sv.u32(id), sv.addr(me()), sv.addr(other)], { cosign: otherName }),
+  payoutCombo: (id, other, otherName, group, debts, billTo, billAmount) =>
     call('circle', 'payout_combo', [
       sv.u32(id), sv.addr(me()), sv.addr(other), sv.u32(group),
       sv.vec(debts.map((d) => sv.struct({ amount: sv.i128(toUnits(d.amount)), to: sv.addr(d.to) }))),
       billTo ? sv.addr(billTo) : sv.none(), sv.i128(toUnits(billAmount || 0)),
-    ]),
+    ], { cosign: otherName }),
 };
 
 // ---------- Settle ----------
@@ -192,6 +206,7 @@ export const claim = {
     const kp = Keypair.random();
     const pub = kp.rawPublicKey();
     const r = await call('claim', 'create', [sv.addr(me()), sv.i128(toUnits(amount)), sv.bytes(pub), sv.u32(request)]);
+    r.result = Number(r.result);
     const secret = StrKey.encodeEd25519SecretSeed(kp.rawSecretKey());
     return { ...r, id: r.result, url: `${location.origin}/#claim=${r.result}.${secret}` };
   },
