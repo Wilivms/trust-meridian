@@ -3370,7 +3370,7 @@ async function comboPayout() {
   const outs = []; if (useS) outs.push(V3(LOC.settle.x - CP.x, 0, LOC.settle.z - CP.z)); if (useC) outs.push(V3(LOC.cover.x - CP.x, 0, LOC.cover.z - CP.z));
   await Promise.all(outs.map((d, j) => Promise.all([0, 1, 2].map((k) => coinArc(me.circleHub, me.circleHub.clone().add(d.clone().normalize().multiplyScalar(26)).setY(G + 0.5), 9, 1.1, j * 0.2 + k * 0.1)))));
   if (useS) P.debts.forEach((t) => P.g.pay.push(t));
-  if (useC) { P.r.status = 'paid'; P.r.paidBy = 0; onChain(`${P.r.payee} confirmed: the escrow released the bill`, 'Trustless Work · release', 'Release · payee paid', (L) => L.coverRelease(P.r.escrow, P.r.city)).catch(() => {}); }
+  if (useC) { P.r.status = 'paid'; P.r.paidBy = 0; await onChain(`${P.r.payee} confirmed: the escrow released the bill`, 'Trustless Work · release', 'Release · payee paid', (L) => L.coverRelease(P.r.escrow, P.r.city)).catch(() => {}); }
   potTo(0, P.total);
   firework(me.home, [me.color, '#ffd23f', '#ffffff']); wait(0.4).then(() => firework(CP, ['#ffd23f', '#5ee0a0', me.color], 21));
   CONF.burst(me.home.clone().setY(G + 3), [me.color, '#ffd23f', '#5ee0a0', '#ffffff'], 90, 11);
