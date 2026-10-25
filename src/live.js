@@ -108,6 +108,10 @@ export const Live = {
   collect: (protoId) => post('/api/bot', { action: 'collect', id: circleId(protoId) }),
   park: (protoId) => chain.circle.park(circleId(protoId)),
   joinDeposit: (protoId) => chain.circle.join(circleId(protoId)),
+  async myCircle(protoId) {
+    const c = await chain.circle.get(circleId(protoId)); const i = c.members.indexOf(state.wallet);
+    return { deposit: i >= 0 ? chain.fromUnits(c.deposits[i] || 0) : 0, advance: i >= 0 ? chain.fromUnits(c.advances[i] || 0) : 0, depositRequired: chain.fromUnits(c.deposit || 0) };
+  },
   advance: (protoId, usd) => chain.circle.advance(circleId(protoId), usd),
   async combo(protoId, co, debts, billUsd, billTo) {
     const id = circleId(protoId);

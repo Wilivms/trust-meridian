@@ -2226,6 +2226,20 @@ async function contribute(i, shared) {
   addSaved(c.amount);
   render();
 }
+// the advance on your turn: your security deposit sits on XOXNO; the circle borrows up to half of it for you now,
+// and your pot repays it automatically when your turn comes
+async function advanceTurn() {
+  const c = circ(), L = window.TMLive;
+  const st = await L.myCircle(c.id);
+  const need = st.depositRequired || 20;
+  if (!(st.deposit > 0)) await onChain(`${c.name}: your ${num(need, 'USDC')} USDC security deposit, supplied to XOXNO`, 'circle · join (deposit)', `Deposit · ${num(need, 'USDC')} USDC → XOXNO`, (L2) => L2.joinDeposit(c.id));
+  const adv = Math.floor(((st.deposit > 0 ? st.deposit : need) / 2) * 100) / 100;
+  pulse(CP.clone().setY(PL)); sparkle(ORB, 0x5ee0a0, 20, 1, 0.6, 3);
+  await onChain(`${c.name}: ${num(adv, 'USDC')} USDC advanced to You, borrowed on XOXNO against your deposit`, 'XOXNO · borrow', `Advance · ${num(adv, 'USDC')} USDC now`, (L2) => L2.advance(c.id, adv));
+  c.advance = adv; render();
+  await coinArc(ORB, FAM[0].circleHub, 6, 1.1);
+  announce('Advance received', `${num(adv, 'USDC')} USDC now, repaid automatically from your pot`, 3200);
+}
 async function othersPay() {
   const c = circ(), L = window.TMLive, live = L && L.ready();
   // live: one `collect` pulls every family instalment from their capped allowances
@@ -2295,6 +2309,7 @@ function renderCircleDetail() {
     <div class="actions">
       ${c.members.length > 1 ? `<button class="btn ghost" data-act="c-others" ${busy || others ? 'disabled' : ''}>Others pay in</button>` : ''}
       <button class="btn ghost" data-act="c-you" ${busy || c.paid[0] ? 'disabled' : ''}>Pay ${fmt(c.amount, 'USDC')}</button>
+      ${c.id === 'c2' && !c.advance ? `<button class="btn ghost" data-act="c-advance" ${busy ? 'disabled' : ''}>Advance on my turn</button>` : ''}
       ${b === FAM[0] ? `<button class="btn" data-act="c-combo" ${busy || !allPaid(c) ? 'disabled' : ''}>Receive &amp; use it…</button><button class="btn ghost" data-act="c-payout" ${busy || !allPaid(c) ? 'disabled' : ''}>Just receive the pot</button>` : `<button class="btn" data-act="c-payout" ${busy || !allPaid(c) ? 'disabled' : ''}>Send the pot to ${b.name} · 2 approvals</button>`}
     </div>`;
 }
@@ -2563,6 +2578,7 @@ panel.addEventListener('click', (e) => {
   else if (a === 'c-others') run(othersPay);
   else if (a === 'c-you') run(youPay);
   else if (a === 'c-payout') run(payout);
+  else if (a === 'c-advance') run(advanceTurn);
   else if (a === 's-open') go(() => { curGroup = id; ui.settle = 'detail'; ui.settleTab = 'exp'; ui.openExp = -1; });
   else if (a === 's-back') go(() => (ui.settle = 'list'));
   else if (a === 's-new') go(() => (ui.settle = 'new'));
@@ -2923,7 +2939,8 @@ function liveBlock() {
       <small class="note" id="depTxt"></small></div>${agentBox()}` : ''}
     <small class="note" id="lvTxt">${L.ready() ? 'Circles, the Lisbon group and claim links run on testnet with this wallet.' : ''}</small></div>`;
 }
-function liveMark() { const L = window.TMLive, s = $('#walletBtn span'); if (L && L.ready() && s) s.textContent = `${ME.name || 'You'} · live`; }
+function liveMark() { loadRequests(); liveMark2(); }
+function liveMark2() { const L = window.TMLive, s = $('#walletBtn span'); if (L && L.ready() && s) s.textContent = `${ME.name || 'You'} · live`; }
 // ---------- the bill agent: Claude pays recurring bills with its own key, within a weekly budget the wallet enforces ----------
 const AGENT_BILLS = [
   { id: 'b1', title: 'Water bill, November', for: 'Vó Lúcia', payee: 5, usdc: 25, due: 2 },
@@ -3029,6 +3046,20 @@ function ensureEscrow(r) {
   return r.escrowP;
 }
 // Cover requests are kept in Supabase (the money stays on-chain); the server writes, everyone reads
+// your requests come back from Supabase after a reload
+async function loadRequests() {
+  const L = window.TMLive; if (!L || !L.wallet()) return;
+  try {
+    const j = await fetch(`/api/request?wallet=${L.wallet()}`).then((x) => x.json());
+    for (const row of (j.requests || []).reverse()) {
+      if (requests.some((r) => r.dbId === row.id)) continue;
+      const city = FAM.findIndex((f) => f.city === row.city);
+      if (city < 0) continue;
+      requests.unshift({ id: 'r' + uid++, dbId: row.id, by: 0, for: row.for_name, city, reason: row.kind, title: row.title, payee: row.payee, amt: Number(row.amount), msg: row.message || '', status: row.status === 'paid' ? 'paid' : 'open' });
+    }
+    render();
+  } catch (e) { console.warn(e); }
+}
 async function saveRequest(r, fingerprint) {
   const L = window.TMLive, f = FAM[r.city];
   try {
@@ -3604,6 +3635,10 @@ const Presenter = (() => {
     }),
     S('Circle', 'The pot earns: DeFindex → XOXNO', async () => { clean(); await goTo('circle'); await run(blendSupply); }),
     S('Circle', 'Payout · two signatures', async () => { clean(); await goTo('circle'); await run(payout); }),
+    S('Circle', 'Need it early? An advance on your turn', async () => {
+      clean(); await goTo('circle'); await view(() => { curCircle = 'c2'; ui.circle = 'detail'; applyCircleMembers(); });
+      chapter('An advance on your turn', 'Borrowed on XOXNO against your deposit, repaid by your pot'); await wait(1.4); await run(advanceTurn);
+    }),
     // ---- 3 · Settle
     S('Settle', 'Arrive at the Archipelago', async () => {
       clean(); await goTo('settle'); await view(() => { curGroup = 's1'; ui.settle = 'detail'; ui.settleTab = 'exp'; }); chapter('Settle', 'Shared expenses across currencies');

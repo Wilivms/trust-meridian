@@ -9,7 +9,10 @@ const str = (v, n) => (v == null ? null : String(v).slice(0, n));
 export default async function handler(req, res) {
   try {
     if (req.method === 'GET') {
-      const { data, error } = await db().from('requests').select('*').order('created_at', { ascending: false }).limit(30);
+      const w = String((req.query && req.query.wallet) || '');
+      let q = db().from('requests').select('*').order('created_at', { ascending: false }).limit(30);
+      if (/^C[A-Z2-7]{55}$/.test(w)) q = q.eq('by_wallet', w);
+      const { data, error } = await q;
       if (error) throw error;
       return json(res, 200, { requests: data });
     }
