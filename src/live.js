@@ -116,7 +116,7 @@ export const Live = {
     if (meIdx >= 0 && !c.paid[meIdx]) await chain.circle.pay(id);
     const d = [];
     for (const t of debts) d.push({ to: await addrOf(t.to), amount: Math.floor(t.usd * 1e6) / 1e6 });
-    return chain.circle.payoutCombo(id, await addrOf(co), NAMES[co], state.ids.s1, d, billTo || null, billUsd || 0);
+    return chain.circle.payoutCombo(id, await addrOf(co), NAMES[co], state.ids.s1, d, billTo || null, billTo ? Math.floor((billUsd || 0) * 100) / 100 : 0);
   },
 
   // ---- Settle
@@ -154,6 +154,10 @@ export const Live = {
   },
 
   // ---- Cover and claim links
+  // ---- Trustless Work escrow for Cover bills
+  escrowCreate: (title, usd, payeeIdx, ref) => post('/api/escrow', { action: 'create', amount: Math.floor(usd * 100) / 100, title, payee: payeeIdx, engagementId: `tm-${(state.wallet || 'guest').slice(0, 6)}-${ref}-${Date.now() % 1e6}` }),
+  coverFund: (contractId, usd) => chain.call('usdc', 'transfer', [chain.sv.addr(state.wallet), chain.sv.addr(contractId), chain.sv.i128(chain.toUnits(Math.floor(usd * 100) / 100))]),
+  coverRelease: (contractId, payeeIdx) => post('/api/escrow', { action: 'release', contractId, payee: payeeIdx }),
   payBill: async (usd, toIdx = 5) => chain.call('usdc', 'transfer', [chain.sv.addr(state.wallet), chain.sv.addr(await addrOf(toIdx)), chain.sv.i128(chain.toUnits(Math.round(usd * 1e6) / 1e6))]),
   claimCreate: (usd) => chain.claim.create(Math.round(usd * 1e6) / 1e6),
   claimBack: (id) => chain.claim.back(id),

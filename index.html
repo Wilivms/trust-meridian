@@ -2440,9 +2440,9 @@ function renderSettleAdd() {
    COVER: help requests
    ========================================================= */
 const STEPS = [
-  ['Sign', 'One passkey signature, fees sponsored'],
-  ['Sent', 'USDC goes straight to the payee on Stellar'],
-  ['Arrived', 'Confirmed on the ledger in about five seconds'],
+  ['Escrow', 'Your USDC is held by a Trustless Work escrow'],
+  ['Confirmed', 'The payee confirms the bill'],
+  ['Released', 'The escrow pays the payee'],
   ['Paid', 'A postcard receipt goes to the whole family'],
 ];
 async function sail(i, j) {
@@ -2462,13 +2462,14 @@ async function payReq() {
   const r = req(), pf = FAM[K.from], tf = FAM[r.city], usd = r.amt / FX[tf.cur];
   K.step = 0; render();
   if (boatAt !== K.from) dockBoat(K.from);
-  await onChain(`${pf.name} paid “${r.title}” to ${r.payee} (${num(usd, 'USDC')} USDC)`, 'USDC transfer', `Bill · ${num(usd, 'USDC')} USDC`, (L) => L.payBill(usd, r.city));
+  if (!r.escrow) await onChain(`Escrow opened for “${r.title}” (Trustless Work)`, 'Trustless Work · deploy', 'Escrow · Trustless Work', () => ensureEscrow(r).then(() => ({ hash: r.escrowHash })));
+  await onChain(`${pf.name} funded the escrow for “${r.title}” (${num(usd, 'USDC')} USDC)`, 'Trustless Work escrow', `Escrow · ${num(usd, 'USDC')} USDC`, (L) => L.coverFund(r.escrow, usd));
   pulse(pf.dock, 0xffd23f); sparkle(pf.dock.clone().setY(2), 0xffe08a, 16, 0.8, 0.5);
   await wait(0.6);
   K.step = 1; render();
   await sail(K.from, r.city);
   K.step = 2; render();
-  const h = LEDGER[0] ? LEDGER[0].h : '';
+  const h = await onChain(`${r.payee} confirmed: the escrow released ${num(usd, 'USDC')} USDC`, 'Trustless Work · release', 'Release · payee paid', (L) => L.coverRelease(r.escrow, r.city));
   pulse(tf.dock, 0xbfe6f5);
   await coinArc(tf.dock.clone().setY(1.4), tf.coverHub, 4, 1.1);
   await wait(0.3);
@@ -2478,7 +2479,7 @@ async function payReq() {
   firework(tf.coverHub, [tf.color, '#ffd23f', '#ffffff'], 16); wait(0.4).then(() => firework(tf.coverHub.clone().add(V3(-3, 0, 2)), ['#ffd23f', tf.color, '#5ee0a0'], 18));
   CONF.burst(tf.coverHub.clone().setY(G + 3), [tf.color, '#ffd23f', '#ffffff', '#5ee0a0'], 80, 10);
   announce('Bill paid', `${fmt(r.amt, tf.cur)} to ${r.payee}`);
-  postcard({ kind: 'Cover · bill paid', stamp: tf.sym, route: `${pf.city} → <em>${tf.city}</em>`, lines: [`sent <b>${fmt(usd * FX[pf.cur], pf.cur)}</b>`, `received <b>${fmt(r.amt, tf.cur)}</b>`, `to ${esc(r.payee)}, in USDC on Stellar`], saved: addSaved(usd), hash: h, share: `${r.for}'s ${r.reason.toLowerCase()} bill is paid` });
+  postcard({ kind: 'Cover · bill paid', stamp: tf.sym, route: `${pf.city} → <em>${tf.city}</em>`, lines: [`sent <b>${fmt(usd * FX[pf.cur], pf.cur)}</b>`, `received <b>${fmt(r.amt, tf.cur)}</b>`, `released to ${esc(r.payee)} by a Trustless Work escrow`], saved: addSaved(usd), hash: h, share: `${r.for}'s ${r.reason.toLowerCase()} bill is paid` });
   await wait(1.2);
   K.step = 4; r.status = 'paid'; r.paidBy = K.from;
 }
@@ -2630,6 +2631,7 @@ panel.addEventListener('submit', (e) => {
     pulse(FAM[city].coverHub, 0xff8a65);
     announce('Request posted', 'The whole family can see it in the Bay');
     saveRequest(r, SCAN.fingerprint); SCAN.done = false; SCAN.fingerprint = null;
+    if (window.TMLive && window.TMLive.ready()) ensureEscrow(r).catch(() => {});
   }
 });
 
@@ -2940,6 +2942,16 @@ function openWallet() {
 $('#walletBtn').addEventListener('click', openWallet);
 
 /* SEP-7: every request is a link or a QR any Stellar wallet can pay */
+// Each Cover request gets its own Trustless Work escrow (deployed by our server, the payee as receiver)
+function ensureEscrow(r) {
+  const L = window.TMLive; if (r.escrow) return Promise.resolve(r.escrow);
+  if (!r.escrowP) {
+    const usd = r.amt / FX[FAM[r.city].cur];
+    r.escrowP = L.escrowCreate(r.title, usd, r.city, r.id).then((x) => { r.escrow = x.contractId; r.escrowHash = x.hash; return x.contractId; });
+    r.escrowP.catch(() => { r.escrowP = null; });
+  }
+  return r.escrowP;
+}
 // Cover requests are kept in Supabase (the money stays on-chain); the server writes, everyone reads
 async function saveRequest(r, fingerprint) {
   const L = window.TMLive, f = FAM[r.city];
@@ -3272,7 +3284,8 @@ async function comboPayout() {
   const n = 1 + (useS ? P.debts.length : 0) + (useC ? 1 : 0);
   BADGE.show(badgePos('circle', 0)); await wait(0.7); BADGE.show(badgePos('circle', c.members.find((i) => i !== 0))); await wait(0.5);
   const co = c.members.find((i) => i !== 0);
-  const h = await onChain(`${c.name}: payout to You, ${useS ? 'Settle debts cleared, ' : ''}${useC ? 'a Cover bill paid, ' : ''}in one transaction`, 'atomic transaction', `Payout + ${n - 1} payments · 1 transaction`, (L) => L.combo(c.id, co, useS ? P.debts : [], useC ? P.billUsd : 0, null));
+  if (useC && !P.r.escrow) await onChain(`Escrow opened for “${P.r.title}” (Trustless Work)`, 'Trustless Work · deploy', 'Escrow · Trustless Work', () => ensureEscrow(P.r).then(() => ({ hash: P.r.escrowHash })));
+  const h = await onChain(`${c.name}: payout to You, ${useS ? 'Settle debts cleared, ' : ''}${useC ? 'a Cover bill paid, ' : ''}in one transaction`, 'atomic transaction', `Payout + ${n - 1} payments · 1 transaction`, (L) => L.combo(c.id, co, useS ? P.debts : [], useC ? P.billUsd : 0, useC ? P.r.escrow : null));
   BADGE.clear();
   camFocus = { t: me.home.clone(), r: 44, pitch: 0.7, yaw: 0.3, until: clock + 4 };
   await Promise.all([0, 1, 2, 3, 4].map((k) => coinArc(ORB, me.circleHub, 6, 1.2, k * 0.1)));
@@ -3281,7 +3294,7 @@ async function comboPayout() {
   const outs = []; if (useS) outs.push(V3(LOC.settle.x - CP.x, 0, LOC.settle.z - CP.z)); if (useC) outs.push(V3(LOC.cover.x - CP.x, 0, LOC.cover.z - CP.z));
   await Promise.all(outs.map((d, j) => Promise.all([0, 1, 2].map((k) => coinArc(me.circleHub, me.circleHub.clone().add(d.clone().normalize().multiplyScalar(26)).setY(G + 0.5), 9, 1.1, j * 0.2 + k * 0.1)))));
   if (useS) P.debts.forEach((t) => P.g.pay.push(t));
-  if (useC) { P.r.status = 'paid'; P.r.paidBy = 0; }
+  if (useC) { P.r.status = 'paid'; P.r.paidBy = 0; onChain(`${P.r.payee} confirmed: the escrow released the bill`, 'Trustless Work · release', 'Release · payee paid', (L) => L.coverRelease(P.r.escrow, P.r.city)).catch(() => {}); }
   potTo(0, P.total);
   firework(me.home, [me.color, '#ffd23f', '#ffffff']); wait(0.4).then(() => firework(CP, ['#ffd23f', '#5ee0a0', me.color], 21));
   CONF.burst(me.home.clone().setY(G + 3), [me.color, '#ffd23f', '#5ee0a0', '#ffffff'], 90, 11);
