@@ -27,8 +27,8 @@ use xoxno_contract_sdk::lending::controller::HubAssetKey;
 use xoxno_contract_sdk::{LendingAddresses, XoxnoLending};
 
 const DAY: u32 = 17_280;
-const TTL_BUMP: u32 = 60 * DAY;
-const TTL_THRESHOLD: u32 = 30 * DAY;
+const TTL_BUMP: u32 = 8 * DAY;
+const TTL_THRESHOLD: u32 = DAY;
 pub const MAX_MEMBERS: u32 = 20;
 /// Grace period after a round opens before the deposit can cover a missed
 /// instalment.

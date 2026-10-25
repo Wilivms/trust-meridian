@@ -1,5 +1,5 @@
 // Small Stellar helpers for scripts (Node, stellar-sdk).
-import { Keypair, rpc, TransactionBuilder, Operation, Address, nativeToScVal, scValToNative, xdr, BASE_FEE } from '@stellar/stellar-sdk';
+import { authorizeEntry, Keypair, rpc, TransactionBuilder, Operation, Address, nativeToScVal, scValToNative, xdr, BASE_FEE } from '@stellar/stellar-sdk';
 import fs from 'node:fs';
 export const RPC = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
 export const PASS = 'Test SDF Network ; September 2015';
@@ -17,7 +17,7 @@ export async function fund(pub) {
   const r = await fetch(`https://friendbot.stellar.org/?addr=${pub}`); if (!r.ok) throw new Error('friendbot ' + r.status + ' ' + (await r.text()).slice(0, 200));
   return true;
 }
-export async function send(kp, op, { auth } = {}) {
+export async function send(kp, op, { signers = [] } = {}) {
   const acct = await server.getAccount(kp.publicKey());
   const isSoroban = /HostFunction|Wasm|Contract/.test(op.body().switch().name);
   let tx = new TransactionBuilder(acct, { fee: '1000', networkPassphrase: PASS }).addOperation(op).setTimeout(300).build();
@@ -25,10 +25,28 @@ export async function send(kp, op, { auth } = {}) {
   if (isSoroban) {
     const sim = await server.simulateTransaction(tx);
     if (rpc.Api.isSimulationError(sim)) throw new Error('simulate: ' + sim.error);
+    let auth0 = sim.result ? sim.result.auth : [];
+    if (signers.length) {
+      const latest = await server.getLatestLedger();
+      const by = Object.fromEntries(signers.map((k) => [k.publicKey(), k]));
+      auth0 = await Promise.all(auth0.map(async (e) => {
+        const c = e.credentials();
+        if (c.switch().name !== 'sorobanCredentialsAddress') return e;
+        const a = Address.fromScAddress(c.address().address()).toString();
+        return by[a] ? authorizeEntry(e, by[a], latest.sequence + 500, PASS) : e;
+      }));
+      // re-simulate with signatures for accurate resources
+      const t2 = new TransactionBuilder(await server.getAccount(kp.publicKey()), { fee: '1000', networkPassphrase: PASS }).addOperation(Operation.invokeHostFunction({ func: tx.operations[0].func, auth: auth0 })).setTimeout(300).build();
+      const s2 = await server.simulateTransaction(t2);
+      if (rpc.Api.isSimulationError(s2)) throw new Error('simulate2: ' + s2.error);
+      sim.minResourceFee = s2.minResourceFee; sim.transactionData = s2.transactionData;
+    }
     const resFee = BigInt(sim.minResourceFee) * 115n / 100n;
-    const data = sim.transactionData.build();
+    const r0 = sim.transactionData.build().resources();
+    const data = sim.transactionData
+      .setResources(Math.min(Math.ceil(r0.instructions() * 1.3), 600_000_000), r0.diskReadBytes(), Math.ceil(r0.writeBytes() * 1.1))
+      .build();
     data.resourceFee(new xdr.Int64(resFee));
-    const auth0 = sim.result ? sim.result.auth : [];
     const op2 = Operation.invokeHostFunction({ func: tx.operations[0].func, auth: auth0 });
     const acct2 = await server.getAccount(kp.publicKey());
     if (resFee + 1000n < 4_000_000_000n) {
@@ -64,7 +82,7 @@ export async function deploy(kp, wasmHash, args) {
   return Address.fromScVal(r.rv).toString();
 }
 export function invokeOp(id, method, args) { return Operation.invokeContractFunction({ contract: id, function: method, args }); }
-export async function invoke(kp, id, method, args = []) { return send(kp, invokeOp(id, method, args)); }
+export async function invoke(kp, id, method, args = [], signers = []) { return send(kp, invokeOp(id, method, args), { signers }); }
 export async function read(id, method, args = []) {
   const acct = new (await import('@stellar/stellar-sdk')).Account(Keypair.random().publicKey(), '0');
   const tx = new TransactionBuilder(acct, { fee: BASE_FEE, networkPassphrase: PASS }).addOperation(invokeOp(id, method, args)).setTimeout(60).build();

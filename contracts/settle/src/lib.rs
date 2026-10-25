@@ -13,8 +13,8 @@ use soroban_sdk::{
 };
 
 const DAY: u32 = 17_280;
-const TTL_BUMP: u32 = 60 * DAY;
-const TTL_THRESHOLD: u32 = 30 * DAY;
+const TTL_BUMP: u32 = 8 * DAY;
+const TTL_THRESHOLD: u32 = DAY;
 pub const MAX_MEMBERS: u32 = 20;
 
 #[contracterror]
