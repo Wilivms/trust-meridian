@@ -530,7 +530,7 @@ button.item:hover{transform:translateY(-2px)}
   </nav>
   <div class="right">
     <button class="replay" id="replay" type="button" aria-label="Replay intro">↺<span>Replay intro</span></button>
-    <button class="chipbtn saved" id="saved" type="button" title="Saved versus the 6.5% average cost of sending money abroad (World Bank)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11.5l3.5-3.5 2.5 2.5 5-5"/><path d="M10 5.5h3.5V9"/></svg><span>Saved</span><b id="savedNum">$1,186.40</b></button>
+    <button class="chipbtn saved" id="saved" type="button" title="Saved versus the 6.5% average cost of sending money abroad (World Bank)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 11.5l3.5-3.5 2.5 2.5 5-5"/><path d="M10 5.5h3.5V9"/></svg><span>Saved</span><b id="savedNum">$0.00</b></button>
     <span class="chipbtn mclock" title="Meridian time: Stellar runs on GMT+0">GMT <b id="mclockT">--:--</b></span>
     <button class="chipbtn iconbtn" id="snd" type="button" aria-label="Mute sound" aria-pressed="true"></button>
     <button class="chipbtn wallet" id="walletBtn" type="button" title="Your passkey wallet"><svg class="fp" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a8 8 0 0 0-8 8v2"/><path d="M20 13v-2a8 8 0 0 0-3-6.2"/><path d="M8 20c1-2 1.5-4.5 1.5-7a2.5 2.5 0 0 1 5 0c0 1.5-.1 3-.4 4.5"/><path d="M12 13c0 3-.6 5.6-2 8"/></svg><span>You · passkey</span></button>
@@ -4561,6 +4561,42 @@ OV.ready = true;
 if (location.hash === '#join') JOIN_ON_ENTER = true;
 requestAnimationFrame(frame);
 // hooks for the live layer (src/main.js) and for tests
+// ---------- a claim link opened by its receiver: #claim=<id>.<secret> ----------
+const CLAIM = (() => { const m = /^#claim=(\d+)\.(S[A-Z2-7]{55})$/.exec(location.hash); return m ? { id: m[1], secret: m[2], step: 0 } : null; })();
+function claimHTML(info) {
+  const x = '<button class="sheet-x" data-sh="close" aria-label="Close">×</button>';
+  const head = `<div><div class="eyebrow"><b>Claim link</b> · Trust Meridian</div><h3>Money is <em>waiting for you</em></h3></div>`;
+  if (!info) return `${x}${head}<p class="lede">Reading the link on Stellar testnet…</p>`;
+  if (info.error) return `${x}${head}<p class="lede">${esc(info.error)}</p>`;
+  if (CLAIM.step === 2) return `${x}${head}<div class="passkey ok"><div class="ring">${FP}</div></div><p class="lede"><b>${num(info.amount, 'USDC')} USDC</b> are in your new wallet. No fees, no seed phrase.</p>${CLAIM.hash ? `<p class="note"><a href="${window.TMLive.explorer(CLAIM.hash)}" target="_blank" rel="noopener">See the transaction on stellar.expert ↗</a></p>` : ''}`;
+  if (info.status !== 0) return `${x}${head}<p class="lede">This link was already used${info.status === 2 ? ': the sender took the money back' : ''}.</p>`;
+  return `${x}${head}<p class="lede">Someone in your family sent you <b>${num(info.amount, 'USDC')} USDC</b>. Create a passkey wallet with Face ID or your fingerprint to receive it. It is free.</p>
+    <div class="field"><label for="clN">Your name</label><input id="clN" maxlength="14" placeholder="e.g. Mateo"></div>
+    ${CLAIM.step === 1 ? `<div class="passkey busy"><div class="ring">${FP}</div><small class="note" id="clTxt">Creating your wallet…</small></div>` : '<div class="actions"><button class="btn" data-sh="claim-go">Claim with Face ID</button></div>'}
+    <small class="note" id="clErr"></small>`;
+}
+async function openClaim() {
+  if (!CLAIM) return;
+  const L = window.TMLive; openSheet(claimHTML(null));
+  try { CLAIM.info = await L.claimInfo(CLAIM.id); } catch (e) { CLAIM.info = { error: 'This link could not be read on testnet.' }; }
+  sheetIn.innerHTML = claimHTML(CLAIM.info);
+}
+async function claimGo() {
+  const L = window.TMLive, name = cleanName(($('#clN') || {}).value || '') || 'Me';
+  CLAIM.step = 1; sheetIn.innerHTML = claimHTML(CLAIM.info);
+  try {
+    await L.receiveWallet(name);
+    const t = $('#clTxt'); if (t) t.textContent = 'Claiming on Stellar testnet…';
+    const r = await L.claimRedeem(CLAIM.id, CLAIM.secret);
+    if (!r || r.success === false) throw new Error(r && r.error || 'The claim failed');
+    CLAIM.hash = r.hash; CLAIM.step = 2; sheetIn.innerHTML = claimHTML(CLAIM.info);
+    logTx(`${name} claimed ${num(CLAIM.info.amount, 'USDC')} USDC from a claim link`, 'claim contract · claim', Date.now(), r.hash);
+    announce('Welcome', `${num(CLAIM.info.amount, 'USDC')} USDC received`, 2600);
+    history.replaceState(null, '', location.pathname);
+  } catch (e) { CLAIM.step = 0; sheetIn.innerHTML = claimHTML(CLAIM.info); const er = $('#clErr'); if (er) er.textContent = String(e.message || e).slice(0, 140); }
+}
+sheet.addEventListener('click', (e) => { const b = e.target.closest('[data-sh="claim-go"]'); if (b) claimGo(); });
+if (CLAIM) { const go = () => { if (!window.TMLive) return setTimeout(go, 300); Intro.st.trace = 1; Intro.st.target = 5; setTimeout(openClaim, 3500); }; setTimeout(go, 600); }
 Object.assign(window, { Presenter, Intro, liveMark, openWallet, LEDGER, loadReflector });
 loadReflector();
 if (window.TMLive && window.TMLive.ready()) liveMark();

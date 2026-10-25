@@ -185,6 +185,13 @@ export const Live = {
   claimCreate: (usd) => chain.claim.create(Math.round(usd * 1e6) / 1e6),
   claimBack: (id) => chain.claim.back(id),
   claimRedeem: (id, secret) => chain.claim.redeem(id, secret),
+  claimInfo: async (id) => { const l = await chain.claim.get(Number(id)); return { amount: chain.fromUnits(l.amount), status: Number(Array.isArray(l.status) ? 0 : l.status), sender: l.sender }; },
+  /** The receiver of a claim link: a passkey wallet only (no family set-up), then the claim. */
+  async receiveWallet(name) {
+    if (state.wallet) return state.wallet;
+    const w = await chain.createWallet(name || 'Trust Meridian');
+    state.wallet = w; state.ids = load(w) || {}; save(); return w;
+  },
   balance: () => chain.usdcBalance(),
 };
 
