@@ -237,6 +237,18 @@ export const claim = {
   },
 };
 
+// ---------- Bill agent: a context rule for USDC transfers, signed by the agent's key, with a weekly cap ----------
+export const LEDGERS_PER_WEEK = 120_960;
+export async function addAgentRule(agentG, weeklyUsd) {
+  const k = getKit();
+  const params = sv.struct({ period_ledgers: sv.u32(LEDGERS_PER_WEEK), spending_limit: sv.i128(toUnits(weeklyUsd)) });
+  const tx = await k.rules.add({ tag: 'CallContract', values: [CFG.usdc] }, 'Bill agent', [{ tag: 'Delegated', values: [agentG] }], new Map([[CFG.spendingLimitPolicy, params]]));
+  const res = await k.signAndSubmitAdmin(tx, { resolveContextRuleIds: (e) => ruleIds(k, e) });
+  if (!res.success) throw new Error(res.error ? res.error.message : 'Could not add the agent');
+  const rule = tx.result; const id = rule && (rule.id ?? (rule.result && rule.result.id));
+  return { hash: res.hash, ledger: res.ledger, ruleId: Number(id) };
+}
+
 // ---------- Anchor: SEP-45 sign-in for a contract wallet, then a SEP-24 deposit ----------
 const ANCHOR = { home: E.VITE_ANCHOR_HOME || 'testanchor.stellar.org' };
 ANCHOR.base = `https://${ANCHOR.home}`;

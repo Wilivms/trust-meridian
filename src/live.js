@@ -158,6 +158,15 @@ export const Live = {
   escrowCreate: (title, usd, payeeIdx, ref) => post('/api/escrow', { action: 'create', amount: Math.floor(usd * 100) / 100, title, payee: payeeIdx, engagementId: `tm-${(state.wallet || 'guest').slice(0, 6)}-${ref}-${Date.now() % 1e6}` }),
   coverFund: (contractId, usd) => chain.call('usdc', 'transfer', [chain.sv.addr(state.wallet), chain.sv.addr(contractId), chain.sv.i128(chain.toUnits(Math.floor(usd * 100) / 100))]),
   coverRelease: (contractId, payeeIdx) => post('/api/escrow', { action: 'release', contractId, payee: payeeIdx }),
+  // ---- The bill agent (Claude): a delegated key on the wallet, capped by a weekly spending limit
+  agentRule: () => (state.ids && state.ids.agentRule != null ? state.ids.agentRule : null),
+  async agentAllow(weeklyUsd) {
+    const { agent } = await fetch('/api/agent').then((r) => r.json());
+    const r = await chain.addAgentRule(agent, weeklyUsd);
+    state.ids.agentRule = r.ruleId; state.ids.agentWeekly = weeklyUsd; save(); return r;
+  },
+  agentRun: (bills, budgetLeft) => post('/api/agent', { action: 'run', wallet: state.wallet, ruleId: state.ids.agentRule, bills, budgetLeft }),
+  agentPay: (payee, usdc) => post('/api/agent', { action: 'pay', wallet: state.wallet, ruleId: state.ids.agentRule, payee, usdc }),
   // ---- Money in: the Stellar test anchor (SEP-45 sign-in, SEP-24 deposit)
   anchorDeposit: (amount) => chain.anchor.deposit(amount),
   anchorStatus: (id) => chain.anchor.status(id),
