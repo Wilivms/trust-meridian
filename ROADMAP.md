@@ -78,3 +78,15 @@ How Trust Meridian was built during HackMeridian (Lisbon, 25–26 October 2026):
 - Delegated signers need a second authorization entry: the agent signs `__check_auth(digest)` on the wallet, where the digest binds the context rule id.
 - The combined payout first passed no bill destination: the bill now goes into the request's escrow.
 - Creating two wallets at once made the shared deployer collide and the relay time out.
+
+## 6 · Hardening for judges
+
+- Claim links work end to end: the receiver opens the link, creates a passkey wallet and claims; the money arrives in seconds.
+- The advance on your turn is in the app and in the presenter: the deposit goes to XOXNO, half of it is borrowed now and the pot repays it.
+- Several people at once: the relay rotates over eight fee sponsors and retries a dropped submission, a failed wallet deployment is retried without a new Face ID, and onboarding runs in short idempotent steps. Verified with three wallets created in parallel.
+- Your Cover requests come back from Supabase after a reload.
+
+### Problems met
+
+- One onboarding step chained six transactions and passed Vercel's 60-second limit under load; a retried step paid the welcome USDC twice.
+- Allowance top-ups set too low let one family member's settlement fail; they are now kept far above what a settlement needs.
