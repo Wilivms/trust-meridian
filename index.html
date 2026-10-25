@@ -3221,7 +3221,19 @@ function comboHTML() {
     <p class="note">All or nothing: if one step fails, nothing moves. Fees sponsored.</p>
     <div class="actions"><button class="btn" data-sh="combo-go">Confirm · 1 transaction</button><button class="btn ghost" data-sh="combo-plain">Just receive the pot</button></div>`;
 }
-function openCombo() { openSheet(comboHTML()); const pt = sheetIn.querySelector('.plain .pt'); if (!pt || RM) return; const t = pt.textContent; pt.textContent = ''; let i = 0; const id = setInterval(() => { if (!pt.isConnected || i >= t.length) { clearInterval(id); if (pt.isConnected) pt.textContent = t; return; } pt.textContent += t[i++]; }, 22); }
+// "In plain words": Claude Haiku (/api/plain) writes the sentence; the local template is the fallback
+async function openCombo() {
+  openSheet(comboHTML()); const pt = sheetIn.querySelector('.plain .pt'); if (!pt) return;
+  const c = circ(), P = comboParts(c); let t = pt.textContent; pt.textContent = 'Claude is writing…';
+  const steps = { payoutUSDC: +P.total.toFixed(2), to: 'you',
+    debts: COMBO.settle ? P.debts.map((d) => ({ to: FAM[d.to].name, usdc: +d.usd.toFixed(2), why: P.g.name + ' shared expenses' })) : [],
+    bill: COMBO.cover && P.r ? { for: P.r.for, payee: P.r.payee, city: FAM[P.r.city].city, usdc: +P.billUsd.toFixed(2) } : null, keepUSDC: +P.keep.toFixed(2) };
+  if (location.protocol !== 'file:') {
+    try { const r = await Promise.race([fetch('/api/plain', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ steps }) }).then((x) => x.json()), wait(5).then(() => null)]); if (r && r.text) t = r.text; } catch (e) { /* template stays */ }
+  }
+  if (!pt.isConnected) return; if (RM) { pt.textContent = t; return; }
+  pt.textContent = ''; let i = 0; const id = setInterval(() => { if (!pt.isConnected || i >= t.length) { clearInterval(id); if (pt.isConnected) pt.textContent = t; return; } pt.textContent += t[i++]; }, 22);
+}
 sheet.addEventListener('change', (e) => { const k = e.target.dataset && e.target.dataset.combo; if (k) { COMBO[k] = e.target.checked; sheetIn.innerHTML = comboHTML(); } });
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-sh]'); if (!b) return;
@@ -3734,12 +3746,32 @@ function billHTML(b, scanning) {
     <div class="bill-t"><span>Total</span><b>R$ 186,40</b></div>
     <i class="bill-wm">SAMPLE</i><i class="bill-line"></i></div>`;
 }
-const scanBoxHTML = () => `<div class="sec scanbox" id="scanBox"><div class="scan-row"><div><b>Snap the bill</b><small>Claude reads it and fills in the request for you</small></div><button class="btn ghost sm" type="button" data-act="scan-bill">Scan the sample bill</button></div></div>`;
-async function scanBill(fast) {
+const scanBoxHTML = () => `<div class="sec scanbox" id="scanBox"><div class="scan-row"><div><b>Snap the bill</b><small>Claude reads it and fills in the request for you</small></div><button class="btn ghost sm" type="button" data-act="scan-bill">Scan the sample bill</button><label class="btn ghost sm" style="cursor:pointer">Upload a photo<input type="file" accept="image/*" capture="environment" data-act="bill-file" style="display:none"></label></div></div>`;
+// Claude reads the bill for real (/api/read-bill); the sample bill is a PNG served with the app
+const toDataURL = (blob) => new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(blob); });
+async function readBill(file) {
+  const blob = file || await (await fetch('/sample-bill.png')).blob();
+  const image = await toDataURL(blob), t0 = performance.now();
+  const r = await fetch('/api/read-bill', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ image, mediaType: blob.type || 'image/png' }) });
+  const j = await r.json(); if (!r.ok || !j.fields) throw new Error(j.error || 'Could not read the bill');
+  return { ...j, secs: (performance.now() - t0) / 1000, image };
+}
+async function scanBill(fast, file) {
   const box = $('#scanBox'); if (!box || SCAN.busy) return; SCAN.busy = true;
-  const b = SAMPLE_BILL, W = (s) => (fast ? Promise.resolve() : wait(s));
-  box.innerHTML = `<div class="scan-wrap">${billHTML(b, true)}<div class="scan-side"><div class="eyebrow"><b>Claude</b> · <span id="scanState">reading the bill…</span></div><ol class="scan-list" id="scanList"></ol></div></div>`;
+  let b = { ...SAMPLE_BILL }; const W = (s) => (fast ? Promise.resolve() : wait(s));
+  const ai = fast || location.protocol === 'file:' ? Promise.resolve(null) : readBill(file).catch((e) => { console.warn(e); return null; });
+  const shown = file ? `<img class="bill scan" alt="Your bill" src="${await toDataURL(file)}" style="max-width:240px;max-height:320px;object-fit:contain;border-radius:10px">` : billHTML(b, true);
+  box.innerHTML = `<div class="scan-wrap">${shown}<div class="scan-side"><div class="eyebrow"><b>Claude</b> · <span id="scanState">reading the bill…</span></div><ol class="scan-list" id="scanList"></ol></div></div>`;
   await W(1.6);
+  const got = await Promise.race([ai, wait(fast ? 0 : 20).then(() => null)]);
+  if (got) {
+    const f = got.fields, kinds = ['School', 'Health', 'Electricity', 'Rent', 'Other'];
+    const cityByCur = FAM.findIndex((x) => x.cur === f.currency);
+    const due = f.due && !isNaN(new Date(f.due)) ? new Date(f.due).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : b.due;
+    b = { ...b, holder: f.customer || b.holder, amt: Number(f.amount) || b.amt, title: f.title || b.title, payee: f.payee || b.payee, ref: f.reference || b.ref, due,
+      reason: kinds.includes(f.kind) ? f.kind : b.reason, city: file && cityByCur > 0 ? cityByCur : b.city };
+    const st0 = $('#scanState'); if (st0) st0.textContent = `read in ${got.secs.toFixed(1)}s`;
+  } else if (file) { const st0 = $('#scanState'); if (st0) st0.textContent = 'could not read it, try the sample'; SCAN.busy = false; return; }
   const put = async (sel, v, label, shown) => {
     const el = $(sel), list = $('#scanList'); if (!el || !list) return;
     if (el.tagName === 'SELECT') { el.value = v; el.dispatchEvent(new Event('change', { bubbles: true })); }
@@ -3755,10 +3787,11 @@ async function scanBill(fast) {
   await put('#rm', `Due ${b.due} · ref ${b.ref}`, 'Due', b.due);
   const bill = box.querySelector('.bill'); if (bill) bill.classList.remove('scan');
   const st = $('#scanState'); if (st) st.textContent = 'done, check and post';
-  box.insertAdjacentHTML('beforeend', '<p class="note" style="margin:0">Read by Claude, checked by you. The photo stays private: only its fingerprint goes on-chain with the request.</p>');
+  box.insertAdjacentHTML('beforeend', `<p class="note" style="margin:0">${got ? `Read by Claude (${esc(got.model)}), checked by you. The photo is not stored: its fingerprint <code>${got.fingerprint.slice(0, 12)}…</code> goes on-chain with the request.` : 'Read by Claude, checked by you. The photo stays private: only its fingerprint goes on-chain with the request.'}</p>`);
   SCAN.done = true; SCAN.busy = false;
 }
 panel.addEventListener('click', (e) => { const b = e.target.closest('[data-act="scan-bill"]'); if (b && !b.disabled) scanBill(); });
+panel.addEventListener('change', (e) => { const i = e.target.closest('[data-act="bill-file"]'); if (i && i.files && i.files[0]) { SCAN.done = false; scanBill(false, i.files[0]); } });
 function comboPlain(P) {
   const bits = [];
   if (COMBO.settle && P.debts.length) bits.push(`${num(P.debtUsd, 'USDC')} clear what you owe ${P.debts.map((t) => FAM[t.to].name).join(' and ')}`);
