@@ -21,7 +21,7 @@ Trust Meridian puts three everyday uses on one passkey wallet:
 | Building block | Role in Trust Meridian |
 |---|---|
 | **OpenZeppelin smart accounts** (smart-account-kit) | Passkey wallets, context rules, spending-limit policy (family allowance), guardians |
-| **OpenZeppelin Relayer Channels** | Sponsors every fee: users never hold XLM |
+| **Sponsored relay** (`api/relay`) | Pays every fee from a sponsor account: users never hold XLM |
 | **DeFindex** | The idle Circle pot is parked in a vault between collection and payout |
 | **XOXNO Lending** | Security deposits are supplied while the circle runs; the *advance on your turn* is borrowed against them |
 | **Trustless Work** | Escrow for Cover bills until the payment is confirmed |
@@ -38,7 +38,7 @@ Trust Meridian puts three everyday uses on one passkey wallet:
 - **Claim**: `create` (locks funds with the public half of a one-time ed25519 key), `claim` (the claimer signs their address with the link key, so a claim cannot be redirected), `claim_back` (0.10 USDC fee while unclaimed), `links_of`.
 
 ```bash
-cargo test            # 16 tests, including XOXNO's protocol fixture
+cargo test            # 17 tests, including XOXNO's protocol fixture
 stellar contract build
 ```
 
@@ -59,9 +59,14 @@ Environment variables are listed in `.env.example`. Secrets stay in Vercel and i
 
 | Contract | Testnet ID |
 |---|---|
-| Circle | _to be filled at deploy_ |
-| Settle | _to be filled at deploy_ |
-| Claim | _to be filled at deploy_ |
+| Circle | [`CBRLDAQIKYQZQM5V2D5JZLZ5GA4JB4VNNGS5YGCZW56XPGZ7OVW22GQD`](https://stellar.expert/explorer/testnet/contract/CBRLDAQIKYQZQM5V2D5JZLZ5GA4JB4VNNGS5YGCZW56XPGZ7OVW22GQD) |
+| Settle | [`CCVRSMT42L5SPEQWYTXUO5NY5B7GQSKRC4YDWYV36XBHU6AORGREQWPM`](https://stellar.expert/explorer/testnet/contract/CCVRSMT42L5SPEQWYTXUO5NY5B7GQSKRC4YDWYV36XBHU6AORGREQWPM) |
+| Claim | [`CCXSVXARY5NY2GN5XRJF37SYFKHPH7I3H7BNWB5WSGMK5AW3LCEEDT3R`](https://stellar.expert/explorer/testnet/contract/CCXSVXARY5NY2GN5XRJF37SYFKHPH7I3H7BNWB5WSGMK5AW3LCEEDT3R) |
+| DeFindex vault "TM Circle" | [`CBCTPTAL7E54BCDYO54GJUNM7GLEPL3UXAF6HEGWMM2MTXLFVJ7NCNSZ`](https://stellar.expert/explorer/testnet/contract/CBCTPTAL7E54BCDYO54GJUNM7GLEPL3UXAF6HEGWMM2MTXLFVJ7NCNSZ) |
+| XOXNO strategy (DeFindex → XOXNO Lending) | [`CCRU56E3WHFFGEQ7LZ4HEEL6MWVZE7BBHB36H4F6Y27T6GGY4SCR2FMM`](https://stellar.expert/explorer/testnet/contract/CCRU56E3WHFFGEQ7LZ4HEEL6MWVZE7BBHB36H4F6Y27T6GGY4SCR2FMM) |
+| USDC (Circle, SAC) | `CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA` |
+
+Live app: https://trust-meridian-blitz-bet.vercel.app
 
 ## Prior work
 

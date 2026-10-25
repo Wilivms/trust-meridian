@@ -2875,7 +2875,7 @@ const allowance = { limit: 50, used: 18 };
 function walletHTML() {
   return `<button class="sheet-x" data-sh="close" aria-label="Close">×</button>
     <div><div class="eyebrow"><b>Your wallet</b> · smart account</div><h3>You, <em>no seed phrase</em></h3></div>
-    <div class="passkey ok"><div class="ring">${FP}</div><small class="note">Signed in with a passkey (Face ID / Touch ID). The key never leaves this phone.</small></div>
+    ${liveBlock()}<div class="passkey ok"><div class="ring">${FP}</div><small class="note">Signed in with a passkey (Face ID / Touch ID). The key never leaves this phone.</small></div>
     <div class="kv"><span>Account</span><b>CBX7…Q2LM</b><span>Network fees</span><b>sponsored · 0 XLM paid</b><span>Pay fees in</span><b>USDC (fee abstraction)</b><span>Balance</span><b>412.50 USDC</b></div>
     <div class="boxed"><div class="h"><b>Family allowance</b><span class="chip ok">enforced by the wallet</span></div>
       <small>Tobi in Lagos can spend up to <b id="alw">${allowance.limit}</b> USDC a week from your account · <span id="alwUsed">${allowance.used}</span> used this week</small>
@@ -2886,8 +2886,37 @@ function walletHTML() {
       <div class="guard">${[1, 4, 3].map((i) => `<span class="chip"><i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${FAM[i].color};margin-right:6px"></i>${FAM[i].name} · ${FAM[i].city}</span>`).join('')}</div><div class="actions"><button class="btn ghost sm" data-sh="rec-demo">Demo: I lost my phone</button></div></div>
     <p class="note">OpenZeppelin smart account on Stellar, transactions relayed by OpenZeppelin Relayer. Prototype values.</p>`;
 }
+/* ---------- live mode: a real passkey wallet on Stellar testnet ---------- */
+function liveBlock() {
+  const L = window.TMLive; if (!L || !L.enabled()) return '';
+  const w = L.wallet();
+  if (!w) return `<div class="boxed" id="liveBox"><div class="h"><b>Go live on Stellar testnet</b><span class="chip">real transactions</span></div>
+    <small>Create a real passkey wallet: every action in the world then becomes a testnet transaction, fees sponsored.</small>
+    <div class="field"><label for="lvN">Your name</label><input id="lvN" maxlength="14" placeholder="e.g. Wiliams"></div>
+    <div class="actions"><button class="btn sm" data-sh="live-new">Create passkey wallet</button><button class="btn ghost sm" data-sh="live-connect">I already have one</button></div>
+    <small class="note" id="lvTxt"></small></div>`;
+  return `<div class="boxed" id="liveBox"><div class="h"><b>Live on Stellar testnet</b><span class="chip ok">${L.ready() ? 'connected' : 'setting up…'}</span></div>
+    <div class="kv"><span>Account</span><b><a href="${L.chain.contractUrl(w)}" target="_blank" rel="noopener">${short(w)} ↗</a></b><span>Balance</span><b id="lvBal">…</b></div>
+    <small class="note" id="lvTxt">${L.ready() ? 'Circles, the Lisbon group and claim links run on testnet with this wallet.' : ''}</small></div>`;
+}
+function liveMark() { const L = window.TMLive, s = $('#walletBtn span'); if (L && L.ready() && s) s.textContent = `${ME.name || 'You'} · live`; }
+async function liveBalance() { const L = window.TMLive, b = $('#lvBal'); if (!b || !L || !L.wallet()) return; try { b.textContent = `${(await L.balance()).toFixed(2)} USDC`; } catch { b.textContent = '—'; } }
+async function goLive(kind, name) {
+  const L = window.TMLive, t = (m) => { const e = $('#lvTxt') || $('#pkTxt'); if (e) e.textContent = m; };
+  t(kind === 'new' ? 'Confirm with Face ID or your fingerprint…' : 'Pick your passkey…');
+  try {
+    if (kind === 'new') await L.createWallet(name || 'You', (m) => t(`Setting up on testnet · ${m}…`));
+    else await L.connect((m) => t(`Setting up on testnet · ${m}…`));
+    t('Setting up on testnet…');
+    await L.whenReady();
+    if (name) ME.name = name;
+    liveMark(); announce('You are live', 'Every action is now a Stellar testnet transaction', 2600);
+    return L.wallet();
+  } catch (e) { t(`Could not go live: ${String(e && e.message || e).slice(0, 120)}`); throw e; }
+}
 function openWallet() {
   openSheet(walletHTML(), () => {
+    liveBalance();
     $('#alwR').addEventListener('input', (e) => { allowance.limit = +e.target.value; $('#alw').textContent = allowance.limit; $('#alwBar').style.width = Math.min(100, allowance.used / allowance.limit * 100) + '%'; });
   });
 }
@@ -3622,6 +3651,8 @@ async function recoveryDemo() {
 
 sheet.addEventListener('click', (e) => {
   const b = e.target.closest('[data-sh]'); if (!b) return;
+  if (b.dataset.sh === 'live-new' || b.dataset.sh === 'live-connect') { const n = cleanName(($('#lvN') || {}).value || ''); b.disabled = true; goLive(b.dataset.sh === 'live-new' ? 'new' : 'connect', n).then(() => { sheetIn.innerHTML = walletHTML(); liveBalance(); }).catch(() => { b.disabled = false; }); }
+  if (b.dataset.sh === 'onb-go' && window.TMLive && window.TMLive.enabled() && !window.TMLive.wallet()) { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML().replace('<small class="note">', '<small class="note" id="pkTxt">'); goLive('new', ONB.name).then((w) => { logTx(`Smart account created for ${ONB.name} (passkey signer), fees sponsored`, 'smart account · deploy'); ONB.step = 2; sheetIn.innerHTML = onboardHTML().replace('CBX7…Q2LM', short(w)); }).catch(() => {}); return; }
   if (b.dataset.sh === 'onb-go') { ONB.name = cleanName(($('#onbN') || {}).value || '') || 'You'; ONB.step = 1; sheetIn.innerHTML = onboardHTML(); setTimeout(async () => { await onChain(`Smart account created for ${ONB.name} (passkey signer), fees sponsored`, 'smart account · deploy', 'Wallet created · passkey'); ONB.step = 2; sheetIn.innerHTML = onboardHTML(); }, 1400); }
   if (b.dataset.sh === 'alw-demo') { closeSheet(); run(allowanceDemo); }
   if (b.dataset.sh === 'rec-demo') { closeSheet(); run(recoveryDemo); }

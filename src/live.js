@@ -49,7 +49,10 @@ export const Live = {
   async restore() {
     if (!chain.CFG.live) return null;
     const w = await chain.restore();
-    if (w) { state.wallet = w; state.ids = load(w); }
+    if (w) {
+      state.wallet = w; state.ids = load(w);
+      if (!(state.ids && state.ids.done)) state.setup = setup();
+    }
     return w;
   },
   /** Passkey wallet creation (one Face ID / fingerprint), then the family setup. */
