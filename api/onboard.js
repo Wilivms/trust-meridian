@@ -35,6 +35,9 @@ export default async function handler(req, res) {
         const t = Keypair.fromSecret(process.env.TREASURY_SECRET);
         // keep the demo family solvent: every new wallet costs them ~1,000 test USDC
         await Promise.all([refill(t, 1500, 4000), refill(B.lea, 500), refill(B.noah, 500), refill(B.hugo, 200), refill(B.ines, 200), refill(B.emma, 200)]);
+        // idempotent: a retried step does not pay the welcome twice
+        const has = BigInt((await simulate(invokeFn(CFG.usdc, 'balance', [sv.addr(me)]))).result || 0);
+        if (has >= U(900)) return json(res, 200, { hashes: [] });
         const func = invokeFn(CFG.usdc, 'transfer', [sv.addr(t.publicKey()), sv.addr(me), sv.i128(U(1000))]);
         const s = await simulate(func);
         const r = await relay({ func: b64(func), auth: (await signEntries(s.auth, [t])).map(b64) });
