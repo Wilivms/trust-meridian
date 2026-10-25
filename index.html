@@ -1888,6 +1888,7 @@ async function onChain(what, kind, label, real) {
   if (live && real) {
     let r;
     try { r = await real(L); } catch (e) {
+      (window.TM_FAILS = window.TM_FAILS || []).push(`${label || kind}: ${String(e && e.message || e).slice(0, 160)}`);
       el.classList.add('ok'); el.innerHTML = `<i class="noc" aria-hidden="true"></i><span><b>Not sent</b> · ${esc(String(e && e.message || e).slice(0, 90))}</span>`;
       setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 500); }, 6000);
       throw e;
@@ -4406,7 +4407,7 @@ OV.ready = true;
 if (location.hash === '#join') JOIN_ON_ENTER = true;
 requestAnimationFrame(frame);
 // hooks for the live layer (src/main.js) and for tests
-Object.assign(window, { Presenter, Intro, liveMark, openWallet });
+Object.assign(window, { Presenter, Intro, liveMark, openWallet, LEDGER });
 if (window.TMLive && window.TMLive.ready()) liveMark();
 };
 requestAnimationFrame(() => setTimeout(TM_MAIN, 40));

@@ -11,7 +11,9 @@ const load = (w) => { try { return JSON.parse(localStorage.getItem(KEY(w)) || 'n
 const save = () => { try { localStorage.setItem(KEY(state.wallet), JSON.stringify(state.ids)); } catch {} };
 
 async function post(path, body) {
-  const r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  let r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  // a 502/504 is the platform (cold start, redeploy), not the contract: try once more
+  if (r.status === 502 || r.status === 504) { await new Promise((ok) => setTimeout(ok, 3000)); r = await fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); }
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(j.error || `${path} failed (${r.status})`);
   return j;
