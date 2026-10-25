@@ -2450,7 +2450,9 @@ async function payReq() {
   const r = req(), pf = FAM[K.from], tf = FAM[r.city], usd = r.amt / FX[tf.cur];
   K.step = 0; render();
   if (boatAt !== K.from) dockBoat(K.from);
-  await onChain(`${pf.name} funded the escrow for “${r.title}”`, 'Trustless Work escrow', `Escrow · ${fmt(usd * FX[pf.cur], pf.cur)}`, K.from === 0 ? (L) => L.payBill(usd, r.city) : null);
+  const liveNow = !!(window.TMLive && window.TMLive.ready() && !Presenter.sim && K.from === 0);
+  // on testnet the bill is paid in USDC to the payee's address; the Trustless Work escrow is the next step
+  await onChain(liveNow ? `${pf.name} paid “${r.title}” in USDC to the payee` : `${pf.name} funded the escrow for “${r.title}”`, liveNow ? 'USDC transfer' : 'Trustless Work escrow', liveNow ? `Bill · ${num(usd, 'USDC')} USDC` : `Escrow · ${fmt(usd * FX[pf.cur], pf.cur)}`, K.from === 0 ? (L) => L.payBill(usd, r.city) : null);
   pulse(pf.dock, 0xffd23f); sparkle(pf.dock.clone().setY(2), 0xffe08a, 16, 0.8, 0.5);
   await wait(0.6);
   K.step = 1; render();
@@ -3522,7 +3524,7 @@ const Presenter = (() => {
     S('Cover', 'Pay it', async () => { clean(); await goTo('cover'); K.from = 0; render(); await wait(0.6); await run(payReq); }),
     S('Cover', 'A claim link for Tobi', async () => {
       clean(); await goTo('cover'); const r = requests.find((x) => x.id === 'r1'); r.status = 'open'; r.claim = false;
-      await view(() => { curReq = 'r1'; ui.cover = 'detail'; K.step = -1; K.from = 1; coverFocus = 4; if (!boatSailing) dockBoat(1); }); await wait(1.2);
+      await view(() => { curReq = 'r1'; ui.cover = 'detail'; K.step = -1; K.from = 0; coverFocus = 4; if (!boatSailing) dockBoat(1); }); await wait(1.2);
       await run(claimLink);
     }),
     S('Cover', 'My links: copy or claim back', async () => {
