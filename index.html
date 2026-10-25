@@ -4372,6 +4372,9 @@ if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { mo
 OV.ready = true;
 if (location.hash === '#join') JOIN_ON_ENTER = true;
 requestAnimationFrame(frame);
+// hooks for the live layer (src/main.js) and for tests
+Object.assign(window, { Presenter, Intro, liveMark, openWallet });
+if (window.TMLive && window.TMLive.ready()) liveMark();
 };
 requestAnimationFrame(() => setTimeout(TM_MAIN, 40));
 </script>
