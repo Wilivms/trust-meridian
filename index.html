@@ -3628,81 +3628,41 @@ const Presenter = (() => {
   const S = (ch, t, run) => ({ ch, t, run });
   // a feature islet, visited once: all its cards at once, presented orally
   const isle = (id) => async () => { clean(); await goTo('overview'); await view(() => { ui.overview = id; }); };
+  const coverDetail = (r, from) => view(() => { curReq = r.id; ui.cover = 'detail'; K.step = -1; K.from = from; coverFocus = r.city; if (!boatSailing) dockBoat(1); });
+  const newBill = async (who) => {
+    clean(); await goTo('cover'); await view(() => (ui.cover = 'new')); await wait(0.5);
+    await typeInto('#rf', who); await wait(0.3); await scanBill(); await wait(0.6); submit('#f-req'); await wait(1.6);
+  };
+  // the video / pitch demo: wallet → Settle (shown, left open) → Cover (one bill paid, one left open) → Circle combo → Overview
   const STEPS = [
-    // ---- 1 · the wallet
     S('Wallet', 'Your passkey wallet', async () => {
-      clean(); await goTo('circle'); chapter('Your wallet', 'No seed phrase, no gas, no jargon'); await wait(1.2);
+      clean(); await goTo('circle'); chapter('Your wallet', 'A passkey, no seed phrase, no gas'); await wait(1.2);
       const L = window.TMLive;
-      // live: the wallet was created before the talk (setup takes ~2 min); show the real account
-      if (L && L.ready()) { openWallet(); await wait(0.2); const b = $('#liveBox'); if (b) b.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' }); }
-      else { needWallet(); }
+      if (L && L.ready()) { openWallet(); await wait(0.2); const bx = $('#liveBox'); if (bx) bx.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' }); }
+      else needWallet();
     }),
-    // ---- 2 · Circle
-    S('Circle', 'Arrive at the Square', async () => {
-      clean(); await goTo('circle'); const c = circles.find((x) => x.id === 'c1'); if (allPaid(c)) { c.paid = []; c.pot = 0; c.shown = 0; }
-      await view(() => { curCircle = 'c1'; ui.circle = 'detail'; applyCircleMembers(); }); chapter('Circle', 'Save together across countries · the pot rotates');
+    S('Family', 'Five relatives, five currencies', async () => {
+      clean(); await goTo('circle'); await view(() => { ui.circle = 'list'; curCircle = 'c1'; applyCircleMembers(); });
+      chapter('One family, five countries', 'Paris · London · Toronto · Mexico City · São Paulo');
     }),
-    S('Circle', 'Everyone pays in', async () => {
-      clean(); await goTo('circle'); await view(() => { curCircle = 'c1'; ui.circle = 'detail'; applyCircleMembers(); }); await wait(0.6);
-      await run(() => Promise.all([youPay(), wait(0.8).then(othersPay)]));
+    S('Settle', 'The Lisbon weekend: expenses', async () => {
+      clean(); await goTo('settle'); await view(() => { curGroup = 's1'; ui.settle = 'detail'; ui.settleTab = 'exp'; }); chapter('Settle', 'Shared costs, in every currency, at live Reflector rates');
     }),
-    S('Circle', 'The pot earns: DeFindex → XOXNO', async () => { clean(); await goTo('circle'); await run(blendSupply); }),
-    S('Circle', 'Payout · two signatures', async () => { clean(); await goTo('circle'); await run(payout); }),
-    S('Circle', 'Need it early? An advance on your turn', async () => {
-      clean(); await goTo('circle'); await view(() => { curCircle = 'c2'; ui.circle = 'detail'; applyCircleMembers(); });
-      chapter('An advance on your turn', 'Borrowed on XOXNO against your deposit, repaid by your pot'); await wait(1.4); await run(advanceTurn);
+    S('Settle', 'Balances: the fewest transfers', async () => {
+      clean(); await goTo('settle'); await view(() => { curGroup = 's1'; ui.settle = 'detail'; ui.settleTab = 'bal'; });
+      announce('What I owe', 'Cleared later by my Circle payout', 2600);
     }),
-    // ---- 3 · Settle
-    S('Settle', 'Arrive at the Archipelago', async () => {
-      clean(); await goTo('settle'); await view(() => { curGroup = 's1'; ui.settle = 'detail'; ui.settleTab = 'exp'; }); chapter('Settle', 'Shared expenses across currencies');
+    S('Cover', 'Grandma’s bill: Claude reads it, you post it', async () => {
+      chapter('Cover', 'Pay a relative’s bill back home'); await wait(0.8); await newBill('Vó Lúcia');
     }),
-    S('Settle', 'Add an expense', async () => {
-      clean(); await goTo('settle'); await view(() => { curGroup = 's1'; ui.settle = 'add'; }); await wait(0.5);
-      await typeInto('#et', 'Fado night in Alfama'); await typeInto('#ea', '180'); setSel('#ew', '1'); setSel('#ec', 'EURC'); await wait(0.6); submit('#f-exp'); await wait(1.6);
+    S('Cover', 'Pay it through a Trustless Work escrow', async () => {
+      clean(); await goTo('cover'); const r = requests[0]; if (!r) return; await coverDetail(r, 0); await wait(0.6); await run(payReq);
     }),
-    S('Settle', 'Settle everyone up', async () => {
-      clean(); await goTo('settle'); await view(() => { curGroup = 's1'; ui.settle = 'detail'; ui.settleTab = 'bal'; }); await wait(1.4);
-      const g = grp(); g.prop = { ok: [] }; render(); announce('Proposal sent', `${settleNeed(g)} of ${g.members.length} approvals needed`); await wait(1.8);
-      await run(approveSettle);
+    S('Cover', 'See it on stellar.expert', () => {
+      const L = window.TMLive, t = LEDGER.find((x) => x.real); if (L && t) window.open(L.explorer(t.h), '_blank', 'noopener');
     }),
-    // ---- 4 · Cover
-    S('Cover', 'Arrive at the Bay', async () => { clean(); await goTo('cover'); await view(() => { ui.cover = 'list'; K.step = -1; }); chapter('Cover', 'Pay a relative’s bill back home'); }),
-    S('Cover', 'Snap the bill: Claude reads it', async () => {
-      clean(); await goTo('cover'); await view(() => (ui.cover = 'new')); await wait(0.5);
-      await typeInto('#rf', 'Vó Lúcia'); await wait(0.3); await scanBill();
-    }),
-    S('Cover', 'Post the request', async () => {
-      clean(); await goTo('cover');
-      if (ui.cover !== 'new' || !$('#ra') || !$('#ra').value) { await view(() => (ui.cover = 'new')); await wait(0.4); $('#rf').value = 'Vó Lúcia'; await scanBill(true); }
-      await wait(0.4); submit('#f-req'); await wait(1.6);
-    }),
-    S('Cover', 'Share it as a link or a QR', async () => {
-      clean(); await goTo('cover'); const r = requests[0]; await view(() => { curReq = r.id; ui.cover = 'detail'; K.step = -1; K.from = 1; coverFocus = r.city; if (!boatSailing) dockBoat(1); });
-      await wait(0.6); const s2 = shareHTML(r); sheet.dataset.uri = s2.uri; openSheet(s2.html, () => drawQR($('#qrShare'), s2.uri));
-    }),
-    S('Cover', 'Pay it', async () => { clean(); await goTo('cover'); K.from = 0; render(); await wait(0.6); await run(payReq); }),
-    S('Cover', 'A claim link for Mateo', async () => {
-      clean(); await goTo('cover'); const r = requests.find((x) => x.id === 'r1'); r.status = 'open'; r.claim = false;
-      await view(() => { curReq = 'r1'; ui.cover = 'detail'; K.step = -1; K.from = 0; coverFocus = 4; if (!boatSailing) dockBoat(1); }); await wait(1.2);
-      await run(claimLink);
-    }),
-    S('Cover', 'My links: copy or claim back', async () => {
-      clean(); await goTo('cover'); await view(() => { ui.cover = 'list'; K.step = -1; });
-      const el = $('#myLinks'); if (el) el.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' });
-      await wait(2.4); const k = LINKS.find((x) => x.status === 'waiting' && x.chainId);
-      if (k) await run(() => claimBack(k.id));
-      const el2 = $('#myLinks'); if (el2) el2.scrollIntoView({ block: 'center' });
-    }),
-    // ---- the bill agent (Claude, with its own capped key)
-    S('Agent', 'The bill agent pays, within its budget', async () => {
-      clean(); await goTo('cover'); chapter('The bill agent', 'Claude pays recurring bills with its own key, capped by the wallet');
-      await wait(1.2); openWallet(); await wait(0.4); const bx = $('#agentBox'); if (bx) bx.scrollIntoView({ block: 'center', behavior: RM ? 'auto' : 'smooth' });
-      if (window.TMLive.agentRule() == null) { const b = $('[data-sh="agent-allow"]'); if (b) await agentAllow(b); await wait(0.6); }
-      await agentRun();
-    }),
-    S('Agent', 'Over budget? The wallet says no', async () => { await agentTest(); }),
-    // ---- 5 · the three together, and the safety net
-    S('Together', 'Your turn to receive a Circle payout', async () => {
+    S('Cover', 'A second bill, left open for the payout', async () => { await newBill('Mateo'); }),
+    S('Circle', 'My turn in Paris–Mexico savers', async () => {
       clean();
       const g = groups[0];
       if (!transfers(g).some((t) => t.from === 0)) {
@@ -3712,14 +3672,16 @@ const Presenter = (() => {
       }
       const c = circles.find((x) => x.id === 'c2');
       if (!allPaid(c) || ben(c) !== FAM[0]) { c.round = 0; c.members.forEach((k) => (c.paid[k] = true)); c.pot = c.shown = c.amount * c.members.length; }
-      COMBO.settle = true; COMBO.cover = true; COMBO.reqId = 'r2'; { const r2 = requests.find((x) => x.id === 'r2'); if (r2) { r2.status = 'open'; r2.claim = false; } }
+      const open = requests.find((x) => x.status === 'open' && x.city !== 0);
+      COMBO.settle = true; COMBO.cover = !!open; COMBO.reqId = open ? open.id : null;
       await goTo('circle'); await view(() => { curCircle = 'c2'; ui.circle = 'detail'; applyCircleMembers(); });
-      chapter('One payout, three uses', 'The pot is about to come to you');
+      chapter('Circle', 'Save together · the pot earns on DeFindex × XOXNO');
     }),
-    S('Together', 'Use it: Settle + Cover in the same transaction', async () => {
-      clean(); await goTo('circle'); openCombo(); await wait(6.5); closeSheet();
-      await run(comboPayout);
-    }),
+    S('Circle', 'Receive & use it: Claude explains', async () => { clean(); await goTo('circle'); openCombo(); }),
+    S('Circle', 'One transaction: pot, debts, bill', async () => { closeSheet(); await run(comboPayout); }),
+    S('Overview', 'Every feature, detailed', async () => { clean(); await goTo('overview'); await view(() => { ui.overview = 'home'; }); }),
+    S('Overview', 'The team', async () => { clean(); await goTo('overview'); await view(() => { ui.overview = 'team'; }); }),
+    S('Overview', 'Try it on your phone', async () => { clean(); await goTo('overview'); await view(() => { ui.overview = 'join'; }); }),
   ];
   const CHS = [...new Set(STEPS.map((s) => s.ch))];
   function paint() {
@@ -3728,7 +3690,7 @@ const Presenter = (() => {
     const intro = mode === 'intro', done = i >= STEPS.length, cur = STEPS[running ? i - 1 : i], prev = STEPS[i - 1];
     const ch = intro ? 'Intro' : done ? 'Done' : (running ? prev : cur).ch;
     const inCh = STEPS.filter((s) => s.ch === ch), k = inCh.indexOf(running ? prev : cur);
-    const label = intro ? 'next chapter' : done ? 'questions · the QR opens the app on testnet' : running ? prev.t : cur.t;
+    const label = intro ? 'next chapter' : done ? 'thank you · questions' : running ? prev.t : cur.t;
     hud.innerHTML = `<span class="pdot ${running ? 'busy' : ''}"></span><b>${ch}</b>${!intro && !done ? `<span class="pn">${k + 1} / ${inCh.length}</span>` : ''}
       <span class="pt">${running ? label : (done ? '' : 'Next: ') + label}</span>
       <span class="pdots">${CHS.map((c) => { const idx = STEPS.findIndex((s) => s.ch === c), last = STEPS.length - 1 - [...STEPS].reverse().findIndex((s) => s.ch === c); return `<i class="${i > last ? 'd' : i > idx ? 'h' : ''}" title="${c}"></i>`; }).join('')}</span>
