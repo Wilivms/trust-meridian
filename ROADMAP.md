@@ -4,7 +4,7 @@ How Trust Meridian was built during HackMeridian (Lisbon, 25–26 October 2026):
 
 ## Before the event (disclosed prior work)
 
-- A visual mockup of the product existed before the hackathon: a single-file 3D ocean world (three.js) where each use is an island and each payment a boat, with simulated transactions. It defined the user journey and the presenter flow. No contract, wallet or chain code existed before the event.
+-An early version of the concept (then called Trust Circle) was pitched at a Stellar workshop before the event. We reworked and extended it during HackMeridian: all code, smart contracts, the app and the designs were written during the hackathon, using open-source libraries (OpenZeppelin smart accounts and smart-account-kit, Stellar SDK, three.js).
 
 ## 1 · Contracts
 
