@@ -79,4 +79,4 @@ An early version of the concept (then called Trust Circle) was pitched at a Stel
 
 ## Team
 
-Wiliams Lopes · De Vinci Blockchain (dvb.xyz)
+Wiliams Lopes & Meyssa Helal · De Vinci Blockchain (dvb.xyz)
