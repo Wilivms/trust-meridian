@@ -75,7 +75,7 @@ Open the live app on a phone, press the passkey button in the wallet sheet ("Go 
 
 ## Prior work
 
-A visual mockup of the 3D world, with simulated transactions, existed before the event. Everything on-chain (contracts, wallet integration, relayer, partner integrations) was built during HackMeridian. The journey is in [ROADMAP.md](ROADMAP.md).
+An early version of the concept (then called Trust Circle) was pitched at a Stellar workshop before the event. We reworked and extended it during HackMeridian: all code, smart contracts, the app and the designs were written during the hackathon, using open-source libraries (OpenZeppelin smart accounts and smart-account-kit, Stellar SDK, three.js). The journey is in [ROADMAP.md](ROADMAP.md).
 
 ## Team
 
